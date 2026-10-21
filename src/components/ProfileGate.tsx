@@ -18,6 +18,7 @@ import {
   removeProfile,
   renameProfile,
   saveRegistry,
+  setKidsProfile,
   type Profile,
   type Registry,
 } from "../persistence/accounts";
@@ -29,7 +30,9 @@ interface ProfilesApi {
   add(name: string, kids?: boolean): void;
   rename(id: string, name: string): void;
   remove(id: string): void;
-  switchProfile(): void;
+  setKids(id: string, kids: boolean): void;
+  // With an id, straight to that profile; without, the picker.
+  switchProfile(id?: string): void;
 }
 const ProfilesContext = createContext<ProfilesApi | null>(null);
 export function useProfiles(): ProfilesApi {
@@ -103,7 +106,13 @@ export function ProfileGate({
       rename: (id, name) => commit(renameProfile(latest.current, id, name)),
       remove: (id) =>
         commit(removeProfile(deviceStorage(), latest.current, id)),
-      switchProfile() {
+      setKids: (id, kids) => commit(setKidsProfile(latest.current, id, kids)),
+      switchProfile(id) {
+        if (id && latest.current.profiles.some((p) => p.id === id)) {
+          remember(id);
+          commit({ ...latest.current, active: id });
+          return;
+        }
         remember(null);
         setChoosing(true);
       },

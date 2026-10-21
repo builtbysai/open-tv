@@ -43,7 +43,10 @@ export type CommandName =
   | "next"
   | "previous"
   | "volume"
-  | "adult";
+  | "adult"
+  | "search"
+  | "fullscreen"
+  | "back";
 export type Command =
   | { t: "play"; id: string; item: ItemRef; queue?: ItemRef[]; start?: number }
   | { t: "seek"; id: string; seconds: number }
@@ -52,6 +55,12 @@ export type Command =
   // Show or hide 18+ content on the TV, from a phone that shows it itself. The TV
   // allows "show" only when its owner has let paired phones do that.
   | { t: "adult"; id: string; show: boolean }
+  // Text typed on the phone into the TV's search, live; submit runs it.
+  | { t: "search"; id: string; text: string; submit?: boolean }
+  // Enter or leave fullscreen in the TV's player.
+  | { t: "fullscreen"; id: string }
+  // One press of the TV remote's Back: closes a menu, leaves fullscreen, then the player.
+  | { t: "back"; id: string }
   | { t: "pause" | "resume" | "stop" | "next" | "previous"; id: string };
 // WebRTC signaling for a direct connection on the home network, relayed as is.
 export interface Signal {
@@ -76,26 +85,47 @@ export interface NowPlaying {
   canStep: boolean;
   // Whether the TV app is on screen (false when it runs in the background).
   visible?: boolean;
+  // The TV's search field has focus: a phone offers to type for it.
+  typing?: boolean;
 }
 export interface Peer {
   id: string;
   name: string;
   online: boolean;
 }
+// Small user-state JSON shared between a TV and its paired phones (see src/sync): each
+// key's latest value and when it was set (epoch ms), a null value marking a removal.
+// Never media, guide data, credentials or device settings.
+export type SyncEntry = [number, unknown];
+export interface SyncDoc {
+  v: 1;
+  e: Record<string, SyncEntry>;
+}
+// `full`: the sender's whole document, so the other side answers with what it lacks.
+export interface SyncMessage {
+  t: "sync";
+  doc: SyncDoc;
+  full?: boolean;
+}
+export const SYNC_BYTES = 192 * 1024;
+export const SYNC_ENTRIES = 4000;
 
 // From a client to the relay.
 export type ControllerMessage =
   | Command
   | { t: "revoke" }
   | { t: "name"; name: string }
-  | { t: "signal"; data: Signal };
+  | { t: "signal"; data: Signal }
+  | SyncMessage;
 export type TvMessage =
   | { t: "state"; state: NowPlaying }
   | { t: "ack"; id: string; to: string; ok: boolean; error?: string }
   | { t: "claim"; code: string }
   | { t: "revoke"; id: string }
   | { t: "name"; name: string }
-  | { t: "signal"; to: string; data: Signal };
+  | { t: "signal"; to: string; data: Signal }
+  // To one phone, or to every paired phone without `to`.
+  | (SyncMessage & { to?: string });
 
 // From the relay to a client.
 export type RelayMessage =
@@ -111,6 +141,8 @@ export type RelayMessage =
   | { t: "ack"; id: string; ok: boolean; error?: string }
   // To the TV: from which phone; to a phone: from the TV.
   | { t: "signal"; from?: string; data: Signal }
+  // To the TV: from which phone.
+  | (SyncMessage & { from?: string })
   | (Command & { from: string });
 
 const ID = /^[A-Za-z0-9_-]{8,64}$/;
@@ -211,6 +243,18 @@ export function parseCommand(raw: Record<string, unknown>): Command | null {
       return typeof raw.show === "boolean"
         ? { t: "adult", id, show: raw.show }
         : null;
+    case "search":
+      return typeof raw.text === "string"
+        ? {
+            t: "search",
+            id,
+            text: text(raw.text, 300),
+            ...(raw.submit === true ? { submit: true } : {}),
+          }
+        : null;
+    case "fullscreen":
+    case "back":
+      return { t: raw.t, id };
     case "pause":
     case "resume":
     case "stop":
@@ -248,6 +292,7 @@ export function parseState(value: unknown): NowPlaying | null {
     canSeek: raw.canSeek === true,
     canStep: raw.canStep === true,
     ...(typeof raw.visible === "boolean" ? { visible: raw.visible } : {}),
+    ...(raw.typing === true ? { typing: true } : {}),
   };
 }
 
@@ -286,10 +331,49 @@ export function parseSignal(value: unknown): Signal | null {
   };
 }
 
+const SYNC_KEY = /^[a-z]{3,4}:[A-Za-z0-9_.:-]{1,200}$/;
+// Only the shape and size are checked here; each value is checked again by the app
+// that applies it.
+export function parseSyncDoc(value: unknown): SyncDoc | null {
+  const raw = value as Record<string, unknown> | null;
+  if (!raw || typeof raw !== "object" || raw.v !== 1) return null;
+  const entries = raw.e as Record<string, unknown> | null;
+  if (!entries || typeof entries !== "object" || Array.isArray(entries))
+    return null;
+  const keys = Object.keys(entries);
+  if (keys.length > SYNC_ENTRIES) return null;
+  const e: Record<string, SyncEntry> = {};
+  for (const key of keys) {
+    const entry = entries[key];
+    if (!SYNC_KEY.test(key) || !Array.isArray(entry) || entry.length !== 2)
+      return null;
+    const t = number(entry[0], 1e13);
+    const v = entry[1];
+    if (
+      t === null ||
+      !(
+        v === null ||
+        ["boolean", "number", "string", "object"].includes(typeof v)
+      )
+    )
+      return null;
+    e[key] = [t, v];
+  }
+  const doc: SyncDoc = { v: 1, e };
+  return JSON.stringify(doc).length <= SYNC_BYTES ? doc : null;
+}
+const parseSync = (raw: Record<string, unknown>): SyncMessage | null => {
+  const doc = parseSyncDoc(raw.doc);
+  return doc
+    ? { t: "sync", doc, ...(raw.full === true ? { full: true } : {}) }
+    : null;
+};
+
 export function parseControllerMessage(data: string): ControllerMessage | null {
   const raw = json(data);
   if (!raw) return null;
   if (raw.t === "revoke") return { t: "revoke" };
+  if (raw.t === "sync") return parseSync(raw);
   if (raw.t === "signal") {
     const data = parseSignal(raw.data);
     return data ? { t: "signal", data } : null;
@@ -333,6 +417,11 @@ export function parseTvMessage(data: string): TvMessage | null {
       const name = text(raw.name, 60).trim();
       return name ? { t: "name", name } : null;
     }
+    case "sync": {
+      const message = parseSync(raw);
+      if (!message || (raw.to !== undefined && !validId(raw.to))) return null;
+      return raw.to ? { ...message, to: raw.to as string } : message;
+    }
     default:
       return null;
   }
@@ -347,19 +436,30 @@ export const credential = {
 export type Credential =
   | { kind: "tv"; secret: string }
   | { kind: "controller"; id: string; token: string }
-  | { kind: "claim"; code: string };
+  // A phone pairing again with the same TV also offers its old credential, so the relay
+  // replaces that entry instead of adding a second one.
+  | { kind: "claim"; code: string; replace?: { id: string; token: string } };
 export function parseCredential(header: string | null): Credential | null {
   const offered = (header ?? "").split(",").map((p) => p.trim());
   if (!offered.includes(PROTOCOL)) return null;
+  let found: Credential | null = null;
+  let claim: string | null = null;
   for (const entry of offered) {
     const [kind, a, b, ...rest] = entry.split(".");
     if (rest.length) continue;
     if (kind === "otv-tv" && validId(a) && b === undefined)
-      return { kind: "tv", secret: a };
+      found ??= { kind: "tv", secret: a };
     if (kind === "otv-ctl" && validId(a) && validId(b))
-      return { kind: "controller", id: a, token: b };
-    if (kind === "otv-claim" && validId(a) && b === undefined)
-      return { kind: "claim", code: a };
+      found ??= { kind: "controller", id: a, token: b };
+    if (kind === "otv-claim" && validId(a) && b === undefined) claim ??= a;
   }
-  return null;
+  if (claim)
+    return {
+      kind: "claim",
+      code: claim,
+      ...(found?.kind === "controller"
+        ? { replace: { id: found.id, token: found.token } }
+        : {}),
+    };
+  return found;
 }

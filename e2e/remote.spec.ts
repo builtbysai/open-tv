@@ -441,3 +441,191 @@ test("hand a title over to the TV and back, keep the place, turn the volume, and
   await tvContext.close();
   await phoneContext.close();
 });
+
+test("pairing brings the phone's sources, library and places to the TV, changes flow back, and unpairing stops it", async ({
+  browser,
+}) => {
+  test.setTimeout(150000);
+  const relayUp = await fetch(RELAY).then(
+    (r) => r.ok,
+    () => false,
+  );
+  test.skip(!relayUp, "No local control relay running");
+  const tvContext = await browser.newContext({
+    viewport: { width: 960, height: 540 },
+  });
+  const phoneContext = await browser.newContext({
+    viewport: { width: 1100, height: 860 },
+  });
+  for (const context of [tvContext, phoneContext]) {
+    await prepare(context);
+    await context.route("https://sync-fixture.test/list.m3u", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "access-control-allow-origin": "*" },
+        body: [
+          "#EXTM3U",
+          '#EXTINF:-1 group-title="Films",Sync Film',
+          "https://video-fixture.test/sync-film.webm",
+          '#EXTINF:-1 group-title="News",Sync Channel',
+          "https://video-fixture.test/live/sync",
+        ].join("\n"),
+      }),
+    );
+  }
+  const tv = await tvContext.newPage();
+  const phone = await phoneContext.newPage();
+
+  // The phone, before pairing: a connected playlist, a saved title and a position.
+  await phone.goto("/#/settings");
+  const form = phone.locator("form").filter({
+    has: phone.getByRole("button", { name: "Connect playlist", exact: true }),
+  });
+  await form
+    .getByRole("textbox", { name: "Name", exact: true })
+    .fill("Sync list");
+  await form
+    .getByRole("textbox", { name: "Playlist URL", exact: true })
+    .fill("https://sync-fixture.test/list.m3u");
+  await form
+    .getByRole("button", { name: "Connect playlist", exact: true })
+    .click();
+  await expect(phone.getByText(/2 entr/).first()).toBeVisible();
+  await phone.goto("/#/movies");
+  await phone
+    .getByRole("button", { name: "Details for Sync Film", exact: true })
+    .first()
+    .click();
+  await phone.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    phone.getByRole("button", { name: "Saved", exact: true }),
+  ).toBeVisible();
+  await phone.getByRole("button", { name: "Close details" }).click();
+  // The fixture is too short to save a place by watching, so it is written in, from
+  // the pairing page (which doesn't run the app and so leaves storage alone).
+  await phone.goto("about:blank");
+  await phone.goto("/#/pair");
+  await phone.evaluate(() => {
+    const user = JSON.parse(localStorage.getItem("opentv:user:v2")!);
+    const id = user.favorites[0];
+    user.progress = { [id]: 15 };
+    user.history = [{ id, at: Date.now() }];
+    localStorage.setItem("opentv:user:v2", JSON.stringify(user));
+  });
+  await phone.goto("/#/home");
+  await expect(
+    phone
+      .getByRole("region", { name: "Continue watching" })
+      .getByRole("button", { name: "Details for Sync Film" }),
+  ).toBeVisible({ timeout: 15000 });
+  const progress = (page: Page) =>
+    page.evaluate(() => {
+      const user = JSON.parse(localStorage.getItem("opentv:user:v2") || "{}");
+      return Math.max(0, ...Object.values<number>(user.progress ?? {}));
+    });
+
+  // Pair a fresh TV.
+  await tv.goto("/?tv=1");
+  await expect(
+    tv.getByRole("button", { name: "Browse on this TV" }),
+  ).toBeVisible();
+  test.skip(
+    (await tv.getByRole("heading", { level: 1 }).innerText()) ===
+      "Set up from your phone",
+    "This build has no control relay (VITE_CONTROL_RELAY)",
+  );
+  const qr = tv.getByRole("img", { name: /QR code to pair/ });
+  const reached = await expect(qr)
+    .toHaveAttribute("data-value", /&c=/, { timeout: 15000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  test.skip(!reached, "This build's control relay can't be reached");
+  await phone.goto("about:blank");
+  await phone.goto(`/${new URL((await qr.getAttribute("data-value"))!).hash}`);
+  await expect(phone.getByText(/Paired\. This phone/)).toBeVisible();
+  await phone.goto("/#/home");
+
+  // The TV arrives at the phone's library, sources and places, with no import step.
+  await expect(tv.getByText(/Synced from your phone · /)).toBeVisible({
+    timeout: 15000,
+  });
+  await tv.getByRole("button", { name: "Browse on this TV" }).click();
+  await expect(
+    tv
+      .getByRole("region", { name: "Continue watching" })
+      .getByRole("button", { name: "Details for Sync Film" }),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(
+    tv
+      .getByRole("region", { name: "Saved" })
+      .getByRole("button", { name: "Details for Sync Film" }),
+  ).toBeVisible();
+  await expect.poll(() => progress(tv)).toBe(15);
+  // Continue on the TV starts from the phone's place (from the start, it couldn't
+  // reach it in 8 seconds).
+  await tv
+    .getByRole("region", { name: "Continue watching" })
+    .getByRole("button", { name: "Details for Sync Film" })
+    .click();
+  await tv.getByRole("button", { name: "Watch now", exact: true }).click();
+  await expect
+    .poll(() => tvVideo(tv).evaluate((v: HTMLVideoElement) => v.currentTime), {
+      timeout: 8000,
+    })
+    .toBeGreaterThan(14);
+  await tv.goto("about:blank");
+  await tv.goto("/?tv=1#/settings");
+  // A reload brings the film back in the player, paused where it was: close it.
+  const restored = tv
+    .locator("dialog.player-dialog")
+    .getByRole("button", { name: "Close player" });
+  await restored.waitFor({ timeout: 10000 }).catch(() => undefined);
+  if (await restored.isVisible()) await restored.click();
+  const tvRow = tv.locator(".source-row").filter({ hasText: "Sync list" });
+  await expect(tvRow.getByText(/2 entr/)).toBeVisible({ timeout: 15000 });
+  await expect(
+    tvRow.getByRole("button", { name: "Disconnect", exact: true }),
+  ).toBeVisible();
+  await settingsTab(tv, "This device");
+  await expect(tv.getByText(/Synced from your phone · /)).toBeVisible();
+
+  // Disconnecting a source on the TV shows on the phone.
+  await settingsTab(tv, "Sources");
+  await tvRow.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await phone.goto("/#/settings");
+  const phoneRow = phone
+    .locator(".source-row")
+    .filter({ hasText: "Sync list" });
+  await expect(
+    phoneRow.getByRole("button", { name: "Connect", exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  await settingsTab(phone, "This device");
+  await expect(
+    phone.locator("#settings-tvs").getByText(/Online · /),
+  ).toBeVisible();
+  await expect(phone.getByText(/Synced with .+ · /)).toBeVisible();
+
+  // Unpairing stops it, and both sides say so.
+  await phone
+    .locator("#settings-tvs")
+    .getByRole("button", { name: "Remove", exact: true })
+    .click();
+  await expect(
+    phone.getByText(/was removed\. Syncing stopped\./).first(),
+  ).toBeVisible();
+  await settingsTab(tv, "This device");
+  await expect(
+    tv.getByText(/was removed\. Syncing stopped\./).first(),
+  ).toBeVisible({ timeout: 15000 });
+  await settingsTab(phone, "Sources");
+  await phoneRow.getByRole("button", { name: "Connect", exact: true }).click();
+  await settingsTab(tv, "Sources");
+  await tv.waitForTimeout(4000);
+  await expect(
+    tvRow.getByRole("button", { name: "Connect", exact: true }),
+  ).toBeVisible();
+  await tvContext.close();
+  await phoneContext.close();
+});

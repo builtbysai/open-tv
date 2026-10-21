@@ -3,11 +3,7 @@ import { Plus, Check } from "lucide-react";
 import { stableId, type Content } from "../domain/content";
 import { classify } from "../domain/privacy";
 import { mediaUrl, streamFormat } from "../domain/urls";
-import {
-  canPersistServer,
-  resolveServerMedia,
-  type MediaServer,
-} from "../domain/servers";
+import { canPersistServer, type MediaServer } from "../domain/servers";
 import type { MediaDraft } from "../domain/view-state";
 export type { MediaDraft } from "../domain/view-state";
 interface Props {
@@ -149,7 +145,9 @@ export function MediaForm({
           episode: isEpisode ? Number(f.get("episode")) || 1 : undefined,
           rights: { status: "user-authorized" },
         };
-        onSave(resolveServerMedia(item, servers));
+        // Saved unresolved: a server title's address is rebuilt from the server on load,
+        // so a server address with a query string never keeps it off the device.
+        onSave(item);
         onDraft?.(null);
         if (!initial) {
           form.reset();

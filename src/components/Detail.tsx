@@ -1,3 +1,4 @@
+import { isTVMode } from "../tv/mode";
 import { licenseLabel } from "../domain/rights";
 import { useEffect, useRef, useState, useId } from "react";
 import {
@@ -120,6 +121,11 @@ export function Detail({
   useEffect(() => {
     const element = document.activeElement as HTMLElement;
     ref.current?.showModal();
+    // On a TV the remote starts on the main action (Watch now), not on Close.
+    if (isTVMode())
+      ref.current
+        ?.querySelector<HTMLElement>(".button.primary:not([disabled])")
+        ?.focus();
     return () => {
       element?.focus();
     };

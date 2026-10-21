@@ -102,14 +102,24 @@ The TV opens on its **idle screen**: whether it can reach the control relay, whi
 phones are paired, and a QR code to pair one. Choosing and searching happen on the
 phone; **Play on TV** starts the title here and the phone becomes the remote. See
 [Play on TV](REMOTE.md). **Browse on this TV** opens the menu for when no phone is at
-hand. There is no typing on the TV: no search screen and no on-screen keyboard, and
-Settings keeps only what a remote can use.
+hand. Settings keeps only what a remote can use.
 
-**Playback the user started is never paused by the app.** The host reports what the
-page plays but does not veto it: a refused audio-focus request is noted, not turned
-into a pause, and coming back to the app never injects a pause. Only an interruption
-that begins while something is already playing pauses it: another app or the assistant
-taking the speakers, or leaving the app. Focus returning never resumes by itself.
+**Search on the TV** uses the TV's own keyboard (the system keyboard is the only one;
+the app draws none): select the search field and type, or use voice. Enter closes the
+keyboard and moves to the first result. Voice search and the search key reach the app
+through Android's search intent, and a paired phone shows a box that types into the TV's
+search as you type.
+
+**Playback the user started is never paused by the app.** The web player owns play and
+pause. Android System WebView requests audio focus for its own media and ducks or
+pauses on a real interruption (another app or the assistant taking the speakers); the
+host never asks for focus itself, because a second request from the same app takes focus
+from WebView, which then pauses the element about a second into playback (the "plays
+for a moment, then pauses" report). An overlay, a system dialog or the file picker
+pauses the activity without stopping it, and playback carries on. Only leaving the app
+for real (Home, another app, an input switch) pauses what plays; coming back restores
+it, playing if it was playing and paused if you had paused it. Settings → About →
+Playback log lists these events with the time and who caused them.
 
 **After a restart.** A boot receiver reopens Open TV after the TV restarts or loses
 power (Settings → This device → Open when the TV starts; on by default), so paired
@@ -123,18 +133,18 @@ available only while the app is running: there is no waking a sleeping TV.
 
 ## Remote controls
 
-| Control                              | Action                                                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Direction pad                        | Move the visible focus between navigation, cards, forms and controls. Rails scroll to the focused item.                         |
-| OK / Select                          | Open a title, activate a button, toggle a checkbox, or open a native choice list.                                               |
-| OK on the video                      | Play/pause.                                                                                                                     |
-| Left / Right on the video            | Seek backward/forward 10 seconds within the media's seekable window. A non-seekable live stream cannot rewind.                  |
-| Down from the video                  | Reach transport, quality, audio, subtitles, sleep and channel/episode controls.                                                 |
-| Play/Pause, Play, Pause, Stop        | Control playback; Stop closes the player. Hardware delivery depends on the remote/firmware.                                     |
-| Media next/previous, Channel up/down | Switch through the current allowed channels or episodes when available.                                                         |
-| Fast forward / Rewind                | Seek 10 seconds; held media seek keys may repeat.                                                                               |
-| Back                                 | Close playback or a dialog; return focus to the menu; return Home; then the idle screen; on the idle screen, exit to Google TV. |
-| Home / Volume / Mute                 | Google TV and the connected audio device handle these normally.                                                                 |
+| Control                               | Action                                                                                                                                                                                                                                       |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direction pad                         | Move the visible focus between navigation, cards, forms and controls. Rails scroll to the focused item.                                                                                                                                      |
+| OK / Select                           | Open a title, activate a button, toggle a checkbox, or open a native choice list.                                                                                                                                                            |
+| OK on the video                       | Play/pause.                                                                                                                                                                                                                                  |
+| Left / Right on the video or seek bar | Seek backward/forward 10 seconds (the skip length in Settings) within the media's seekable window; hold to go faster. The target time shows at once and the video jumps there after a short pause. A non-seekable live stream cannot rewind. |
+| Down from the video                   | Reach the seek bar, then transport, channel/episode, quality, audio, subtitles, sleep timer, fullscreen and shortcuts (see the map below).                                                                                                   |
+| Play/Pause, Play, Pause, Stop         | Control playback; Stop closes the player. Hardware delivery depends on the remote/firmware.                                                                                                                                                  |
+| Media next/previous, Channel up/down  | Switch through the current allowed channels or episodes when available.                                                                                                                                                                      |
+| Fast forward / Rewind                 | Seek like Left/Right, accelerating while held.                                                                                                                                                                                               |
+| Back                                  | One step at a time: close an open player menu; wake hidden fullscreen controls; leave fullscreen; close playback or a dialog; return focus to the menu; return Home; then the idle screen; on the idle screen, exit to Google TV.            |
+| Home / Volume / Mute                  | Google TV and the connected audio device handle these normally.                                                                                                                                                                              |
 
 The current screen remains selected in navigation when Back returns focus.
 Favorites and collection controls are in title details. Every visible player control
@@ -144,10 +154,60 @@ leave by themselves after a few seconds and never take focus. The only number en
 the TV is the optional 18+ PIN, which uses the system number pad.
 The Google TV Assistant button and branded app buttons are system functions;
 this app does not remap them or register global Assistant search. Chromecast
-receiver support is not implemented. The preview now connects foreground playback
-to Android MediaSession and audio focus. It pauses on interruptions and never
-automatically resumes on focus gain. Private titles are redacted and the app-owned
+receiver support is not implemented. Foreground playback is reported to Android
+MediaSession; audio focus is left to WebView (see above). Private titles are redacted and the app-owned
 private session is not advertised to the system.
+
+### Remote control map (player)
+
+The onn remote has a D-pad, OK, Back, a channel rocker, volume, Home and voice: no
+play/pause, fast-forward, rewind or Escape keys. The Android app turns Back into a
+cancelable `opentv:back` page event and the rocker into `MediaTrackNext` /
+`MediaTrackPrevious`. Every control the player draws is reachable and usable with these
+alone; nothing in TV mode depends on a mouse or on hover. Focus is a 3 px accent frame.
+
+Focus order, top to bottom (Up/Down move between rows, Left/Right within a row):
+
+1. **Title bar:** Close player (Up from the picture).
+2. **Picture** (where focus starts): OK plays/pauses; Left/Right seek.
+3. **Notices over the picture**, when shown: _Sound is off in this player. Unmute_ (an
+   embedded player that reports it is muted), the no-sound notice (_Try next source_,
+   _Dismiss_), _Try next source_ / _Back_ on a playback error.
+4. **Seek bar** (titles with a length): Left/Right seek exactly as on the picture, the
+   time shown at the right; Up/Down leave it.
+5. **Button row:** Play/Pause, Rewind, Forward, then Previous and Next (episodes,
+   channels, songs), Quality, Audio and Subtitles choices (native lists), **Sleep timer**,
+   **Fullscreen**, **Playback shortcuts**. Left/Right move between buttons here; Down from
+   the seek bar lands on the nearest button.
+
+Embedded server players show their own row instead (Play/Pause, back/forward, seek, mute)
+when the server speaks a protocol Open TV can drive; the frame itself is out of the
+remote's reach.
+
+- **Menus (Sleep timer):** OK opens the panel with focus on its first choice; arrows move
+  between choices; OK picks one and closes it; Back closes it and returns focus to its
+  button, leaving the player open.
+- **Seeking:** each Left/Right press moves a target time, shown in the middle of the
+  picture and on the seek bar; the video jumps there 0.7 s after the last press, so a run
+  of presses costs one seek. Holding the key steps 10 s, then 30 s after about a second,
+  then 60 s after three.
+- **Media keys** (other remotes, phones, keyboards) work wherever focus is, controls
+  included: Play/Pause, Play, Pause, Stop (closes), Fast forward/Rewind (seek), Next/
+  Previous and Channel up/down (change title). They drive an embedded player too when
+  Open TV can talk to it.
+- **Fullscreen:** OK on Fullscreen fills the screen with the picture and moves focus to it.
+  After 3 s without input the title bar, Close, the controls and any panel go, and the
+  picture fills the whole screen; while focus is in the controls they stay. Any D-pad
+  press or media key brings them back (Up/Down while hidden only wake them, so focus never
+  lands on something invisible); they hide again after 3 s. **Back** first wakes hidden
+  controls, then leaves fullscreen on the next press, and never closes the player in the
+  same press. The page's shell goes fullscreen (so the page keeps control of its chrome)
+  and the Android app hides the system bars whenever any fullscreen view is shown.
+- **Outside fullscreen** on a TV the controls never hide on a timer.
+
+On the web the same overlay hides after 3 s with no pointer movement while a video plays,
+never while the pointer rests on the title bar or the controls, and never while a menu is
+open. A click on hidden controls only brings them back; it does not pause the video.
 
 ## First run and transferring sources
 

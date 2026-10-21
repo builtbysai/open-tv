@@ -80,10 +80,12 @@ function Selects({
           </select>
         </Wrap>
       )}
-      {snapshot.audio.length > 1 && (
+      {snapshot.audio.length > 0 && (
         <Wrap name="Audio">
           <select
             aria-label="Audio track"
+            value={snapshot.audioId ?? snapshot.audio[0].id}
+            title={snapshot.audioNote}
             onChange={(e) => service.current?.setAudio(Number(e.target.value))}
           >
             {snapshot.audio.map((t) => (
@@ -93,6 +95,11 @@ function Selects({
             ))}
           </select>
         </Wrap>
+      )}
+      {snapshot.audioNote && (
+        <p className="pc-note" role="note">
+          {snapshot.audioNote}
+        </p>
       )}
       {!!snapshot.subtitles.length && (
         <Wrap name="Subtitles">
@@ -122,7 +129,7 @@ export function ToolCluster(p: Props) {
   const { snapshot, service, sleep } = p;
   const hasSettings =
     snapshot.quality.length > 0 ||
-    snapshot.audio.length > 1 ||
+    snapshot.audio.length > 0 ||
     snapshot.subtitles.length > 0 ||
     Boolean(p.speed);
   return (

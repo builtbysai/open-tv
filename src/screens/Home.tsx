@@ -22,6 +22,7 @@ interface Props {
   shelves: Shelf[];
   showArchive: boolean;
   surprisePool: Content[];
+  onNotice?(message: string): void;
   onSearchSources(title: string): void;
   // How many of the two setup steps are done, or null once nothing is left to remind about.
   setupDone: number | null;
@@ -56,6 +57,7 @@ export function Home({
   shelves,
   showArchive,
   surprisePool,
+  onNotice,
   onSearchSources,
   setupDone,
   setupSteps,
@@ -104,6 +106,7 @@ export function Home({
       (item) => item.availability === "playable" && item.streams.length > 0,
     );
     if (pool.length) play(pool[Math.floor(Math.random() * pool.length)]);
+    else onNotice?.("Nothing playable yet. Connect a source first.");
   };
   return (
     <>

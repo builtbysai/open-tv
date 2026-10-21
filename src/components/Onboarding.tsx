@@ -249,7 +249,8 @@ export function Onboarding({
             </p>
             {hasKey ? (
               <p className="onboarding-done">
-                <Check size={18} /> TMDB is connected.
+                <Check size={18} /> TMDB key saved. Trending titles appear on
+                Home once it is checked.
               </p>
             ) : (
               <>

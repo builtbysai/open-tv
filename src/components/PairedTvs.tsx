@@ -3,10 +3,11 @@ import { Check, Pencil, Tv } from "lucide-react";
 import { controlRelay } from "../config/control";
 import { pairings, usePairings } from "../remote/pairings";
 import { revokePairing } from "../remote/useRemote";
+import { SyncLine } from "./SyncLine";
 
 // The TVs this device can play on. Pair one by scanning the code on the TV's screen.
 export function PairedTvs() {
-  const { list, active } = usePairings();
+  const { list, active, online } = usePairings();
   const [editing, setEditing] = useState("");
   const [name, setName] = useState("");
   if (!controlRelay) return null;
@@ -20,6 +21,12 @@ export function PairedTvs() {
           ? "Choose a title and press Play on TV to start it on the TV. This device then works as its remote."
           : "Open Open TV on your TV and scan the code on its screen with this device to pair. You only do this once."}
       </p>
+      {list.length > 0 && (
+        <p className="muted">
+          Your library, sources, servers and settings stay the same on both.
+        </p>
+      )}
+      <SyncLine tv={false} />
       {list.length > 0 && (
         <ul className="paired-tvs">
           {list.map((tv) => (
@@ -49,7 +56,7 @@ export function PairedTvs() {
                   <strong>{tv.name}</strong>
                   <span className="muted">
                     {tv.tvId === active
-                      ? "Plays here when you choose Play on TV"
+                      ? `${online[tv.tvId] ? "Online" : "Offline"} · Plays here when you choose Play on TV`
                       : "Paired"}
                   </span>
                 </div>

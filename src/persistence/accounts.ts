@@ -105,6 +105,21 @@ export function renameProfile(
     ),
   };
 }
+export function setKidsProfile(
+  registry: Registry,
+  id: string,
+  kids: boolean,
+): Registry {
+  return {
+    ...registry,
+    profiles: registry.profiles.map((p) => {
+      if (p.id !== id) return p;
+      const { kids: _, ...rest } = p;
+      void _;
+      return kids ? { ...rest, kids: true } : rest;
+    }),
+  };
+}
 export function removeProfile(
   storage: Store,
   registry: Registry,

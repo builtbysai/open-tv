@@ -9,6 +9,7 @@ import {
   type NowPlaying,
   type Peer,
   type RelayMessage,
+  type SyncDoc,
 } from "./protocol";
 import { ControlSocket, type SocketStatus } from "./socket";
 import { LanLink } from "./lan";
@@ -27,6 +28,8 @@ export interface Receiver {
   claim: string;
   report(state: NowPlaying): void;
   revoke(id: string | "*"): void;
+  // A sync document for one phone, or for every paired phone.
+  sync(doc: SyncDoc, full: boolean, to?: string): boolean;
 }
 const CLAIM_EVERY = 9 * 60 * 1000;
 
@@ -35,6 +38,7 @@ const CLAIM_EVERY = 9 * 60 * 1000;
 export function useReceiver(
   enabled: boolean,
   name: string,
+  onSync: ((doc: SyncDoc, full: boolean, from: string) => void) | undefined,
   onCommand: (command: Command) => CommandResult | Promise<CommandResult>,
 ): Receiver {
   const on = enabled && !!controlRelay;
@@ -48,6 +52,8 @@ export function useReceiver(
   const socket = useRef<ControlSocket | null>(null);
   const handler = useRef(onCommand);
   handler.current = onCommand;
+  const syncHandler = useRef(onSync);
+  syncHandler.current = onSync;
   const last = useRef<{ state: NowPlaying; sentAt: number } | null>(null);
   const known = useRef(0);
   // Direct links to phones on the same network, by phone.
@@ -79,7 +85,9 @@ export function useReceiver(
             (data) => socket.current?.send({ t: "signal", to: from, data }),
             (data) => {
               const command = parseControllerMessage(data);
-              if (command && "id" in command)
+              if (command?.t === "sync")
+                syncHandler.current?.(command.doc, command.full === true, from);
+              else if (command && "id" in command)
                 run(command as Command, (reply) => made.send(reply));
             },
             (state) => {
@@ -105,6 +113,15 @@ export function useReceiver(
         // A code is used up by the phone that paired with it.
         if (message.controllers.length > known.current) issue();
         known.current = message.controllers.length;
+        return;
+      }
+      if (message.t === "sync") {
+        if (message.from)
+          syncHandler.current?.(
+            message.doc,
+            message.full === true,
+            message.from,
+          );
         return;
       }
       if ("from" in message && "id" in message) {
@@ -171,6 +188,11 @@ export function useReceiver(
   const revoke = useCallback((id: string) => {
     socket.current?.send({ t: "revoke", id });
   }, []);
+  const sync = useCallback((doc: SyncDoc, full: boolean, to?: string) => {
+    const message = { t: "sync", doc, ...(full ? { full } : {}) };
+    if (to && links.current.get(to)?.send(message)) return true;
+    return !!socket.current?.send({ ...message, ...(to ? { to } : {}) });
+  }, []);
   return {
     enabled: on,
     tvId: identity.current?.id ?? "",
@@ -179,5 +201,6 @@ export function useReceiver(
     claim,
     report,
     revoke,
+    sync,
   };
 }

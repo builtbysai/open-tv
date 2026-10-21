@@ -10,7 +10,11 @@ import {
 export const MUSIC_PROVIDERS_KEY = "opentv:music-providers:v1";
 export const MUSIC_CHECKS_KEY = "opentv:music-checks:v1";
 const LOOKUPS_KEY = "opentv:music-lookups:v1";
+// Songs played lately belong to the profile that played them (the first profile keeps the
+// key from before profiles).
 const RECENT_KEY = "opentv:music-recent:v1";
+export const recentSongsKey = (profileId = "main") =>
+  profileId === "main" ? RECENT_KEY : `${RECENT_KEY}:${profileId}`;
 
 export function validateMusicProvider(value: unknown): MusicProvider | null {
   if (!value || typeof value !== "object") return null;
@@ -96,9 +100,10 @@ export function setLookupsEnabled(
 // Songs played lately, so Listen again can show them after a reload.
 export function readRecentSongs(
   storage: Pick<Storage, "getItem"> | undefined,
+  key = RECENT_KEY,
 ): Song[] {
   try {
-    const value = JSON.parse(storage?.getItem(RECENT_KEY) || "[]");
+    const value = JSON.parse(storage?.getItem(key) || "[]");
     return (Array.isArray(value) ? value : [])
       .filter(
         (s) =>
@@ -129,13 +134,14 @@ export function readRecentSongs(
 export function rememberSong(
   storage: Pick<Storage, "getItem" | "setItem"> | undefined,
   song: Song,
+  key = RECENT_KEY,
 ): Song[] {
   const next = [
     song,
-    ...readRecentSongs(storage).filter((s) => s.id !== song.id),
+    ...readRecentSongs(storage, key).filter((s) => s.id !== song.id),
   ].slice(0, 40);
   try {
-    storage?.setItem(RECENT_KEY, JSON.stringify(next));
+    storage?.setItem(key, JSON.stringify(next));
   } catch {
     /* Optional. */
   }

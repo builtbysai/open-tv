@@ -10,6 +10,7 @@ import {
   MUSIC_CHECKS_KEY,
   readMusicProviders,
   readRecentSongs,
+  recentSongsKey,
   rememberSong,
   setLookupsEnabled,
   writeMusicProviders,
@@ -29,7 +30,8 @@ const storage = () => {
 };
 // Music providers (their order is the order they are tried in), their last health check,
 // the songs played lately, and whether lyrics and album art are looked up.
-export function useMusic() {
+export function useMusic(profileId = "main") {
+  const recentKey = recentSongsKey(profileId);
   const [providers, setProviders] = useState(() => {
     const store = storage();
     return store ? readMusicProviders(store) : [];
@@ -41,7 +43,7 @@ export function useMusic() {
   });
   const [checking, setChecking] = useState<string[]>([]);
   const [recent, setRecent] = useState<Song[]>(() =>
-    readRecentSongs(storage()),
+    readRecentSongs(storage(), recentKey),
   );
   const [lookups, setLookups] = useState(() => lookupsEnabled(storage()));
   const latest = useRef(providers);
@@ -100,9 +102,18 @@ export function useMusic() {
     });
   }, []);
   const remember = useCallback(
-    (song: Song) => setRecent(rememberSong(storage(), song)),
-    [],
+    (song: Song) => setRecent(rememberSong(storage(), song, recentKey)),
+    [recentKey],
   );
+  // Clearing viewing history clears the songs played lately too.
+  const clearRecent = useCallback(() => {
+    try {
+      storage()?.removeItem(recentKey);
+    } catch {
+      /* Nothing stored. */
+    }
+    setRecent([]);
+  }, [recentKey]);
   const setLookups_ = useCallback((on: boolean) => {
     setLookupsEnabled(storage(), on);
     setLookups(on);
@@ -121,6 +132,7 @@ export function useMusic() {
     newId,
     recent,
     remember,
+    clearRecent,
     items,
     lookups,
     setLookups: setLookups_,

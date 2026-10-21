@@ -69,6 +69,9 @@ export function LibraryScreen({
   navigate,
 }: Props) {
   const restricted = useRestricted();
+  const [confirming, setConfirming] = useState<"collection" | "history" | null>(
+    null,
+  );
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -224,16 +227,34 @@ export function LibraryScreen({
                 <Pencil size={15} />
                 Rename
               </button>
-              <button
-                className="button text"
-                onClick={() => {
-                  onDeleteCollection(activeCollection.id);
-                  setLibraryTab("saved");
-                }}
-              >
-                <Trash2 size={15} />
-                Delete collection
-              </button>
+              {confirming === "collection" ? (
+                <span className="confirm-inline">
+                  <button
+                    className="button danger small"
+                    onClick={() => {
+                      setConfirming(null);
+                      onDeleteCollection(activeCollection.id);
+                      setLibraryTab("saved");
+                    }}
+                  >
+                    Delete “{activeCollection.name}”
+                  </button>
+                  <button
+                    className="button text small"
+                    onClick={() => setConfirming(null)}
+                  >
+                    Keep
+                  </button>
+                </span>
+              ) : (
+                <button
+                  className="button text"
+                  onClick={() => setConfirming("collection")}
+                >
+                  <Trash2 size={15} />
+                  Delete collection
+                </button>
+              )}
             </div>
           }
         </div>
@@ -265,12 +286,17 @@ export function LibraryScreen({
           </button>
         </form>
       )}
-      {libraryTab === "personal" && (
+      {libraryTab === "personal" && !restricted && (
         <div className="library-utilities">
           <button
             className="button text"
             onClick={() => {
-              const items = personalMedia.filter(canPersistContent);
+              // Server titles go out without the address built from the server.
+              const items = personalMedia
+                .map((item) =>
+                  item.serverId ? { ...item, streams: [] } : item,
+                )
+                .filter(canPersistContent);
               exportJson("open-tv-library.json", { version: 1, items });
             }}
           >
@@ -279,13 +305,18 @@ export function LibraryScreen({
           </button>
           <label className="button text file-input">
             <Upload size={15} />
-            Import collection
+            Import personal media
             <input
               type="file"
               accept=".json"
               onChange={async (e) => {
                 const file = e.target.files?.[0];
-                if (!file || file.size > 5000000) return;
+                e.target.value = "";
+                if (!file) return;
+                if (file.size > 5000000) {
+                  onNotice("Choose a file smaller than 5 MB.");
+                  return;
+                }
                 try {
                   const serialized = await file.text();
                   if (!mounted.current) return;
@@ -306,7 +337,9 @@ export function LibraryScreen({
                     },
                     items,
                   );
-                  onNotice(`Imported ${items.length} entries.`);
+                  onNotice(
+                    `Imported ${items.length} ${items.length === 1 ? "entry" : "entries"}.`,
+                  );
                 } catch {
                   if (mounted.current)
                     onNotice("That collection could not be imported.");
@@ -334,10 +367,33 @@ export function LibraryScreen({
       {libraryTab === "history" && items.length > 0 && (
         <div className="library-bar">
           <span className="muted">{items.length} watched</span>
-          <button className="button text" onClick={onClearHistory}>
-            <Trash2 size={14} />
-            Clear history
-          </button>
+          {confirming === "history" ? (
+            <span className="confirm-inline">
+              <button
+                className="button danger small"
+                onClick={() => {
+                  setConfirming(null);
+                  onClearHistory();
+                }}
+              >
+                Clear history and progress
+              </button>
+              <button
+                className="button text small"
+                onClick={() => setConfirming(null)}
+              >
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              className="button text"
+              onClick={() => setConfirming("history")}
+            >
+              <Trash2 size={14} />
+              Clear history
+            </button>
+          )}
         </div>
       )}
       <div className="content-grid">
@@ -345,7 +401,8 @@ export function LibraryScreen({
           <div className="library-item" key={item.id}>
             {renderCard(item)}
             {libraryTab === "personal" &&
-            item.providerId === "personal-media" ? (
+            item.providerId === "personal-media" &&
+            !restricted ? (
               <div className="library-item-tools">
                 <button
                   className="button text"

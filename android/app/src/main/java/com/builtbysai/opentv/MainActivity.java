@@ -8,8 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.SystemClock;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
+import android.app.SearchManager;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
@@ -56,10 +55,11 @@ public final class MainActivity extends Activity {
     private Map<String, String> securityHeaders = new HashMap<>();
     private MediaSession mediaSession;
     private AudioManager audioManager;
-    private AudioFocusRequest audioFocus;
-    // The page reports its own phase; the host never vetoes or re-pauses a playback the user
-    // started. Only an interruption that begins while something is already playing pauses it.
-    private boolean hasAudioFocus, playing, privateMode, destroyed, foreground = true;
+    // The page owns play and pause. Android System WebView requests and handles audio focus for
+    // its own media (ducking or pausing on a real interruption), so the host never asks for focus
+    // itself: a second request from the same app takes focus from WebView, which then pauses the
+    // element about a second into playback. The host only reports lifecycle changes.
+    private boolean playing, privateMode, destroyed, stopped, foreground = true;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -128,6 +128,9 @@ public final class MainActivity extends Activity {
                 if (customView != null) { callback.onCustomViewHidden(); return; }
                 customView = view; customCallback = callback; web.setVisibility(View.GONE);
                 root.addView(view, new FrameLayout.LayoutParams(-1,-1));
+                // Page fullscreen (the player shell, with the page's own chrome) arrives here
+                // too: the system bars always go with it.
+                view.requestFocus(); immersive();
             }
             @Override public void onHideCustomView() { hideCustomView(); }
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
@@ -181,7 +184,8 @@ public final class MainActivity extends Activity {
             });
         }
         web.setDownloadListener((url, agent, disposition, mime, size) -> message("Use JSON export controls with an up-to-date Android System WebView, or export from the web viewer."));
-        web.loadUrl(ORIGIN + "/index.html?tv=1");
+        String query = searchQuery(getIntent());
+        web.loadUrl(ORIGIN + "/index.html?tv=1" + (query == null ? "" : "&q=" + Uri.encode(query)));
         web.requestFocus();
         immersive();
     }
@@ -302,17 +306,6 @@ public final class MainActivity extends Activity {
     }
     private void setupMedia() {
         audioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
-        audioFocus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setWillPauseWhenDucked(true).setAcceptsDelayedFocusGain(false)
-            .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
-            .setOnAudioFocusChangeListener(change -> {
-                if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                    hasAudioFocus = false;
-                    // Another app (or the assistant) took the speakers while this was playing.
-                    if (playing) dispatchMedia("MediaPause");
-                }
-                // Regaining focus never resumes audio automatically, and never pauses it either.
-            }).build();
         mediaSession = new MediaSession(this,"OpenTV");
         mediaSession.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { dispatchMedia("MediaPlay"); }
@@ -328,10 +321,28 @@ public final class MainActivity extends Activity {
             }
         });
     }
-    private void abandonFocus() {
-        if (audioManager != null && audioFocus != null) audioManager.abandonAudioFocusRequest(audioFocus);
-        hasAudioFocus = false;
+    // A line in the page's playback log (Settings → About → Playback log).
+    private void hostLog(String event) {
+        if (!destroyed && web != null) web.evaluateJavascript("window.dispatchEvent(new CustomEvent('opentv:hostlog',{detail:{event:" + JSONObject.quote(event) + "}}))", null);
     }
+    // Voice search and the system search key land in the app's own search.
+    private static String searchQuery(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEARCH.equals(intent.getAction())) return null;
+        String query = intent.getStringExtra(SearchManager.QUERY);
+        if (query == null) return null;
+        query = query.replaceAll("[\\p{Cntrl}]", "").trim();
+        return query.isEmpty() ? null : query.substring(0, Math.min(query.length(), 200));
+    }
+    private void openSearch(String query) {
+        if (destroyed || web == null) return;
+        web.evaluateJavascript("window.dispatchEvent(new CustomEvent('opentv:search',{detail:{text:" + JSONObject.quote(query == null ? "" : query) + "}}))", null);
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String query = searchQuery(intent);
+        if (query != null) openSearch(query);
+    }
+    @Override public boolean onSearchRequested() { openSearch(null); return true; }
     private void setPrivateMode(boolean enabled) {
         privateMode = enabled;
         if (enabled) {
@@ -353,10 +364,6 @@ public final class MainActivity extends Activity {
             default -> PlaybackState.STATE_STOPPED;
         };
         playing = state == PlaybackState.STATE_PLAYING || (playing && state == PlaybackState.STATE_BUFFERING);
-        // Asked for politely; a refusal is noted and never turned into a pause.
-        if (state == PlaybackState.STATE_PLAYING && !hasAudioFocus && audioManager != null)
-            hasAudioFocus = audioManager.requestAudioFocus(audioFocus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        if (state == PlaybackState.STATE_PAUSED || state == PlaybackState.STATE_STOPPED) abandonFocus();
         if (privateMode || state == PlaybackState.STATE_STOPPED) {mediaSession.setActive(false);mediaSession.setMetadata(null);return;}
         long position = Math.max(0,Math.min(604800000L,json.optLong("position"))), duration = Math.max(0,Math.min(604800000L,json.optLong("duration")));
         String title = json.optString("title","Open TV").replaceAll("[\\p{Cntrl}]","");
@@ -394,29 +401,48 @@ public final class MainActivity extends Activity {
         return super.dispatchKeyEvent(event); // D-pad, Select, system Volume/Home and IME remain native.
     }
     @Override public void onBackPressed() {
-        if (customView != null) { hideCustomView(); return; }
+        // In fullscreen the page decides first (wake hidden controls, then leave fullscreen,
+        // which hides the custom view); only a Back it leaves unhandled closes the view here.
         web.evaluateJavascript("!window.dispatchEvent(new Event('opentv:back',{cancelable:true}))", handled -> {
             if ("true".equals(handled)) return;
+            if (customView != null) { hideCustomView(); return; }
             finish();
         });
     }
+    // An overlay, a system dialog or the file picker pauses the activity without stopping it:
+    // playback carries on. Only private content is hidden from the recents screenshot.
     @Override protected void onPause() {
         foreground = false;
         if (privateMode) {if (customView != null) hideCustomView();web.setVisibility(View.INVISIBLE);}
         mediaSession.setActive(false);mediaSession.setMetadata(null);
-        // Leaving the app interrupts what was playing; the page also locks private content.
-        web.evaluateJavascript("window.dispatchEvent(new Event('opentv:suspend'))", null);
-        web.onPause();
+        hostLog("activity paused (overlay or dialog); playback continues");
         super.onPause();
     }
-    // Coming back never injects a pause: whatever the page is doing carries on.
     @Override protected void onResume() {
         super.onResume(); foreground = true;
         if (web == null) return;
-        web.onResume();
         if (!privateMode) setPrivateMode(false);
-        web.evaluateJavascript("window.dispatchEvent(new Event('opentv:resume'))", null);
+        hostLog("activity resumed");
         immersive();
+    }
+    // Leaving the app for real (Home, another app, an input switch): the page pauses what plays
+    // and remembers it; coming back restores it, playing if it was playing.
+    @Override protected void onStop() {
+        stopped = true;
+        if (web != null) {
+            hostLog("activity stopped; the page pauses playback");
+            web.evaluateJavascript("window.dispatchEvent(new Event('opentv:suspend'))", null);
+            web.onPause();
+        }
+        super.onStop();
+    }
+    @Override protected void onStart() {
+        super.onStart();
+        if (!stopped || web == null) return;
+        stopped = false;
+        web.onResume();
+        hostLog("activity started again; the page restores playback");
+        web.evaluateJavascript("window.dispatchEvent(new Event('opentv:resume'))", null);
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
@@ -433,7 +459,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
-        abandonFocus(); if (mediaSession != null) {mediaSession.setActive(false);mediaSession.release();}
+        if (mediaSession != null) {mediaSession.setActive(false);mediaSession.release();}
         if (fileCallback != null) {fileCallback.onReceiveValue(null);fileCallback = null;}
         pendingExport = null;
         if (web != null) { root.removeView(web); web.destroy();web = null; }

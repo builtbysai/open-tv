@@ -152,3 +152,43 @@ test("the scrubber seeks and the time shows hours only when needed", async ({
     .toBeGreaterThan(0.9);
   await expect(page.getByLabel("Playback time")).toContainText("/ 0:30");
 });
+
+test("controls stay while the pointer rests on them, and a press on hidden controls only wakes them", async ({
+  page,
+}) => {
+  await playClip(page);
+  const shell = page.locator(".player-shell");
+  await page.getByRole("button", { name: "Pause", exact: true }).hover();
+  await page.waitForTimeout(3600);
+  await expect(shell).not.toHaveClass(/ui-idle/);
+  await page.mouse.move(300, 300);
+  await expect(shell).toHaveClass(/ui-idle/, { timeout: 5000 });
+  expect(
+    await page
+      .locator(".player-stage")
+      .evaluate((stage) => getComputedStyle(stage).cursor),
+  ).toBe("none");
+  // The first press brings the controls back; it does not also pause the picture.
+  await page.mouse.click(300, 300);
+  await expect(shell).not.toHaveClass(/ui-idle/);
+  expect(
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+  ).toBe(false);
+});
+
+test("a picture that plays with no sound decoded says so, without blocking", async ({
+  page,
+}) => {
+  // The fixture clip has no audio track, so after a few seconds no audio has been decoded.
+  await playClip(page);
+  const notice = page
+    .getByRole("status")
+    .filter({ hasText: "No sound is coming through" });
+  await expect(notice).toBeVisible({ timeout: 10000 });
+  await expect(notice).toContainText("AC-3");
+  expect(
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+  ).toBe(false);
+  await notice.getByRole("button", { name: "Dismiss" }).click();
+  await expect(notice).toHaveCount(0);
+});

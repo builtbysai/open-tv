@@ -58,18 +58,115 @@
     opacity 260ms var(--ease-out, ease),
     transform 260ms var(--ease-out, ease);
 }
-.player-shell.overlay.ui-idle {
+/* Fullscreen: the picture takes the whole screen and the chrome floats over it, so hidden
+   chrome never leaves bars around the video. */
+.player-shell.is-fullscreen:not(.overlay) .player-stage {
+  position: absolute;
+  inset: 0;
+}
+.player-shell.is-fullscreen:not(.overlay) .player-bar {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(#000c, #0000);
+}
+.player-shell.is-fullscreen:not(.overlay) .player-controls {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-top: 36px;
+  background: linear-gradient(#0000, #000d);
+}
+.player-shell .player-bar,
+.player-shell .player-controls {
+  transition:
+    opacity 260ms var(--ease-out, ease),
+    transform 260ms var(--ease-out, ease);
+}
+/* Idle: everything but the picture goes, the cursor too. Hidden chrome is also invisible to
+   focus, so the remote cannot land on a control nobody can see. */
+.player-shell.ui-idle,
+.player-shell.ui-idle .player-stage,
+.player-shell.ui-idle video {
   cursor: none;
 }
-.player-shell.overlay.ui-idle .player-bar {
+.player-shell.ui-idle .player-bar,
+.player-shell.ui-idle .player-controls,
+.player-shell.ui-idle .pc-transport,
+.player-shell.ui-idle .player-hint {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition:
+    opacity 260ms var(--ease-out, ease),
+    transform 260ms var(--ease-out, ease),
+    visibility 0s linear 260ms;
+}
+.player-shell.ui-idle .player-bar {
   transform: translateY(-8px);
 }
-.player-shell.overlay.ui-idle .pc-transport {
-  opacity: 0;
-  pointer-events: none;
+.player-shell.ui-idle .player-controls,
+.player-shell.ui-idle .pc-transport {
   transform: translateY(8px);
+}
+.seek-preview {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: #000c;
+  color: #fff;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.embed-muted {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.embed-muted p,
+.embed-muted .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #000d;
+  color: #fff;
+}
+.player-notice {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  width: min(560px, 92%);
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #121418f2;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.player-notice p {
+  margin: 0 0 10px;
+}
+.pc-note {
+  margin: 0;
+  max-width: 260px;
+  font-size: 12px;
+  color: #ffffffb3;
 }
 .player-shell.overlay .player-hint {
   position: absolute;

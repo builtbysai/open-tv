@@ -178,7 +178,11 @@ describe("authorized XMLTV refresh", () => {
     const fetcher = vi.fn(async (): Promise<Response> => {
       throw new TypeError("Failed to fetch");
     });
-    const service = new GuideService(fetcher, vi.fn(() => programs), () => now);
+    const service = new GuideService(
+      fetcher,
+      vi.fn(() => programs),
+      () => now,
+    );
     expect(guideStatusText({ ...service.snapshot, status: "loading" })).toBe(
       "Loading your guide…",
     );
@@ -191,9 +195,9 @@ describe("authorized XMLTV refresh", () => {
     now += 16000;
     await service.check(true);
     expect(guideStatusText(service.snapshot)).toMatch(/^Updated /);
-    expect(
-      guideStatusText({ ...service.snapshot, status: "loading" }),
-    ).toBe("Refreshing your guide…");
+    expect(guideStatusText({ ...service.snapshot, status: "loading" })).toBe(
+      "Refreshing your guide…",
+    );
     now += 16000;
     await service.check(true);
     expect(guideStatusText(service.snapshot)).toBe(
@@ -207,18 +211,21 @@ describe("authorized XMLTV refresh", () => {
         true,
         "https://appassets.androidplatform.net",
       ),
-    ).toBe("https://appassets.androidplatform.net/__https/i.example/Guide/us.xml?x=1");
-    expect(guideFetchUrl("https://i.example/us.xml", false, "https://site")).toBe(
-      "https://i.example/us.xml",
+    ).toBe(
+      "https://appassets.androidplatform.net/__https/i.example/Guide/us.xml?x=1",
     );
+    expect(
+      guideFetchUrl("https://i.example/us.xml", false, "https://site"),
+    ).toBe("https://i.example/us.xml");
     const hosted = (landed: string | null, status = 200, statusText = "OK") =>
       new GuideService(
-        vi.fn(async () =>
-          new Response("xml", {
-            status,
-            statusText,
-            headers: landed ? { "x-open-tv-url": landed } : {},
-          }),
+        vi.fn(
+          async () =>
+            new Response("xml", {
+              status,
+              statusText,
+              headers: landed ? { "x-open-tv-url": landed } : {},
+            }),
         ),
         vi.fn(() => programs),
         () => 1000,

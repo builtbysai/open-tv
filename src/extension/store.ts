@@ -85,8 +85,9 @@ export function setSiteExtension(file: ExtensionFile | null) {
   for (const s of file?.sources ?? []) site.set(s.id, s);
 }
 // The playlist text or catalog entries of one source, from whichever extension has it.
+// The file imported on this device wins, as it does for names and addresses.
 export function inlineData(id: string): ExtensionSource | undefined {
-  return site.get(id) ?? memory?.sources.find((source) => source.id === id);
+  return memory?.sources.find((source) => source.id === id) ?? site.get(id);
 }
 
 // The address an extension was loaded from, kept so it can be refreshed. It may carry a

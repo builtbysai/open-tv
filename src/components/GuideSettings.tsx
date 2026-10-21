@@ -74,6 +74,13 @@ export function GuideSettings({
           try {
             await guide.connect(value);
             if (generation !== epoch.current) return;
+            const after = guide.current();
+            if (after.status === "error") {
+              setMessage(
+                `This guide didn’t load, so it wasn’t saved. ${after.reason || ""}`.trim(),
+              );
+              return;
+            }
             form.reset();
             // A plain address comes back when the app opens; one with a token does not.
             setMessage(

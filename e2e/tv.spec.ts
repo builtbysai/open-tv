@@ -169,7 +169,7 @@ test("TV player handles OK, media keys, bounded seeking and Back with real HLS p
   await page.keyboard.press("Escape");
   await expect(page.locator("video")).toHaveCount(0);
 });
-test("TV settings hold only what a remote can use; Back steps out one level at a time; suspend hides 18+", async ({
+test("TV settings hold only what a remote can use; Back steps out one level at a time; leaving the app keeps 18+ as it was", async ({
   page,
 }) => {
   await page.goto("/?tv=1#/settings");
@@ -221,6 +221,7 @@ test("TV settings hold only what a remote can use; Back steps out one level at a
     .getByRole("button", { name: "Show 18+ content", exact: true })
     .click();
   await expect(page.locator(".private-banner")).toBeVisible();
+  // Leaving the app keeps the choice (the Android app hides its window while away).
   await page.evaluate(() => window.dispatchEvent(new Event("opentv:suspend")));
-  await expect(page.locator(".private-banner")).toHaveCount(0);
+  await expect(page.locator(".private-banner")).toBeVisible();
 });
