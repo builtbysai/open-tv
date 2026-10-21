@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+artifacts/
+*.tsbuildinfo
+android/.gradle/
+android/**/build/
+android/local.properties
+*.keystore
+*.jks
+relay.config.json
+__pycache__/
+dist-site
+
+# Optional site-served extension file (see docs/EXTENSIONS.md). Keep it out of a public repo.
+public/extension.json
+public/extension-data/
+
+# Local state of the control relay during development
+.wrangler/
+pw.local.config.ts

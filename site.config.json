@@ -1,0 +1,6 @@
+{
+  "name": "Open TV",
+  "url": "https://tv.builtbysai.com/",
+  "takedownEmail": "",
+  "controlRelay": "wss://open-tv-control.saihanswissle.workers.dev"
+}

@@ -1,0 +1,106 @@
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  font-size: 15px;
+  --canvas: #0b0d10;
+  --surface: #15181d;
+  --surface-raised: #1e2229;
+  --line: #2b3038;
+  --text: #f4f5f6;
+  --muted: #a5acb6;
+  --quiet: #929aa6;
+  --accent: #f4f5f6;
+  --accent-ink: #101317;
+  --live: #bed995;
+  --danger: #f3a69a;
+  --font: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --display: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --page-gutter: clamp(20px, 4vw, 80px);
+  --header-height: 76px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius: 4px;
+  --fast: 160ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button,
+a {
+  touch-action: manipulation;
+}
+a {
+  color: inherit;
+}
+button {
+  color: inherit;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* The same, chosen for this device in Settings. */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  scroll-behavior: auto !important;
+  animation: none !important;
+  transition: none !important;
+}

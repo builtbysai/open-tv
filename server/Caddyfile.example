@@ -1,0 +1,5 @@
+# Use your own server/bandwidth, without an orange-cloud video CDN or public open proxy.
+# Caddy obtains HTTPS certificates; no request access log is enabled here.
+your-relay.example {
+  reverse_proxy 127.0.0.1:8788
+}

@@ -1,0 +1,21 @@
+{
+  "publicBase": "https://your-relay.example",
+  "port": 8788,
+  "origins": [
+    "https://tv.builtbysai.com",
+    "https://appassets.androidplatform.net"
+  ],
+  "maxConcurrent": 12,
+  "requestsPerMinute": 360,
+  "sources": [
+    {
+      "id": "your-authorized-channel",
+      "url": "http://broadcaster.example/live/master.m3u8",
+      "allowedOrigins": [
+        "http://broadcaster.example",
+        "https://media.broadcaster.example"
+      ],
+      "allowedPathPrefixes": ["/live/", "/segments/", "/keys/"]
+    }
+  ]
+}

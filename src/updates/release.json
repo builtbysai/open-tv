@@ -1,0 +1,13 @@
+{
+  "revision": 3,
+  "fingerprint": "534548829fe5bf4eedd25005a7fbfcfc7d9f8bf72bd8154fbdbfb18920622b32",
+  "publishedAt": "2026-10-19T23:37:17.891Z",
+  "catalogs": [
+    {
+      "id": "open-cinema",
+      "path": "/catalog/releases/open-cinema-ea75759e2fdb5aa664687110aee6bd105845c1b8744527b79c63cd3510b95454.json",
+      "sha256": "ea75759e2fdb5aa664687110aee6bd105845c1b8744527b79c63cd3510b95454",
+      "bytes": 3463
+    }
+  ]
+}

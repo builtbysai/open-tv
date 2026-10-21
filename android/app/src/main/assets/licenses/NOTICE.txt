@@ -1,0 +1,19 @@
+Open TV Google TV preview
+Source and attribution: https://github.com/builtbysai/open-tv
+
+Android runtime libraries:
+AndroidX WebKit and transitive AndroidX libraries
+Copyright The Android Open Source Project
+https://developer.android.com/jetpack/androidx
+
+Kotlin standard library and JetBrains annotations (transitive dependencies)
+Copyright JetBrains s.r.o. and contributors
+https://github.com/JetBrains/kotlin
+https://github.com/JetBrains/java-annotations
+
+These libraries use the Apache License, Version 2.0, included in Apache-2.0.txt.
+Each library retains its respective upstream copyrights.
+
+React, React DOM, Scheduler, HLS.js and Lucide React runtime license texts
+are copied from the installed, lockfile-selected packages during the build.
+See the adjacent per-package text files and THIRD_PARTY.md for film attribution.

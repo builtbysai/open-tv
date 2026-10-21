@@ -1,0 +1,261 @@
+/* Explicit TV mode: also used by the bundled Android launcher at 720p/1080p. */
+html[data-tv="true"] {
+  --page-gutter: 5vw;
+  --header-height: 100px;
+  font-size: 18px;
+}
+[data-tv="true"] :focus {
+  outline: 3px solid var(--accent) !important;
+  outline-offset: 5px;
+}
+[data-tv="true"] .app-header {
+  padding-inline: 5vw;
+  gap: 24px;
+}
+[data-tv="true"] .main-nav {
+  display: flex !important;
+  position: static;
+  border: 0;
+  padding: 0;
+  width: auto;
+  flex-direction: row;
+  gap: 24px;
+}
+[data-tv="true"] .main-nav button {
+  font-size: 18px;
+  white-space: nowrap;
+  height: 44px;
+  padding: 4px;
+}
+[data-tv="true"] .main-nav button.active::after {
+  bottom: -8px;
+}
+[data-tv="true"] .hero {
+  min-height: 0;
+  height: clamp(340px, 56vh, 580px);
+}
+[data-tv="true"] .brand {
+  font-size: 28px;
+}
+[data-tv="true"] .brand-symbol {
+  width: 34px;
+  height: 34px;
+}
+[data-tv="true"] .bottom-nav {
+  display: none;
+}
+[data-tv="true"] button,
+[data-tv="true"] .button,
+[data-tv="true"] input,
+[data-tv="true"] select,
+[data-tv="true"] textarea {
+  font-size: 17px;
+  min-height: 44px;
+}
+[data-tv="true"] .icon-button {
+  min-width: 44px;
+}
+[data-tv="true"] .main-content {
+  padding-bottom: 0;
+}
+[data-tv="true"] .content-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+}
+[data-tv="true"] .route-live .content-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+[data-tv="true"] .content-rail {
+  grid-auto-columns: calc((100% - 84px) / 4);
+  scroll-padding-inline: 8px;
+  gap: 28px;
+  padding: 8px;
+  margin: -8px;
+}
+[data-tv="true"] .content-rail.channel-rail {
+  grid-auto-columns: calc((100% - 112px) / 5);
+}
+[data-tv="true"] .card-copy h3 {
+  font-size: 20px;
+}
+[data-tv="true"] .card-copy p {
+  font-size: 15px;
+}
+[data-tv="true"] .card-select {
+  scroll-margin: 20px;
+}
+[data-tv="true"] .card-save {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-tv="true"] .card-save:focus {
+  opacity: 1;
+  pointer-events: auto;
+}
+[data-tv="true"] .detail-dialog {
+  width: min(960px, 90vw);
+}
+[data-tv="true"] .description,
+[data-tv="true"] .muted,
+[data-tv="true"] .source-copy p {
+  font-size: 17px;
+}
+[data-tv="true"] .fine-print,
+[data-tv="true"] .source-note,
+[data-tv="true"] .detail-meta,
+[data-tv="true"] .source-status,
+[data-tv="true"] .episode-meta {
+  font-size: 14px;
+}
+[data-tv="true"] label,
+[data-tv="true"] .episode-title {
+  font-size: 17px;
+}
+[data-tv="true"] .eyebrow {
+  font-size: 13px;
+}
+[data-tv="true"] .source-copy h3 {
+  font-size: 19px;
+}
+[data-tv="true"] .settings-tabs button {
+  min-height: 52px;
+  font-size: 18px;
+}
+[data-tv="true"] .source-controls {
+  max-width: none;
+}
+[data-tv="true"] .player-bar h2 {
+  font-size: 25px;
+}
+[data-tv="true"] .player-tools {
+  flex-wrap: wrap;
+  overflow: visible;
+  gap: 14px;
+}
+[data-tv="true"] .player-hint {
+  font-size: 14px;
+}
+.tv-play-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+.tv-play-surface > span {
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  background: #0b0d10ed;
+}
+.tv-play-surface:focus > span {
+  opacity: 1;
+}
+.tv-transport {
+  display: flex;
+  gap: 20px;
+  padding: 14px 5vw;
+  align-items: center;
+}
+.tv-transport input {
+  flex: 1;
+  min-width: 80px;
+  accent-color: var(--accent);
+}
+.tv-transport output {
+  min-width: 130px;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+.tv-settings h2 {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.remote-legend {
+  margin: 24px 0;
+}
+.remote-legend > div {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 16px;
+}
+.remote-legend dt {
+  font-weight: 600;
+  font-size: 14px;
+}
+.remote-legend dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (max-width: 1000px) {
+  [data-tv="true"] .app-header {
+    gap: 16px;
+    padding-inline: 4vw;
+  }
+  [data-tv="true"] .main-nav {
+    gap: 16px;
+  }
+  [data-tv="true"] .main-nav button {
+    font-size: 16px;
+  }
+  [data-tv="true"] .brand {
+    font-size: 24px;
+  }
+  [data-tv="true"] .brand-symbol {
+    display: none;
+  }
+  [data-tv="true"] .route-live .content-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .remote-legend > div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+@media (max-height: 600px) {
+  html[data-tv="true"] {
+    --header-height: 84px;
+  }
+  [data-tv="true"] .hero {
+    height: 340px;
+  }
+  [data-tv="true"] .hero-content {
+    padding-block: 20px;
+    max-width: 600px;
+  }
+  [data-tv="true"] .hero h1 {
+    font-size: 42px;
+    margin-bottom: 16px;
+    letter-spacing: -2px;
+  }
+  [data-tv="true"] .hero-description {
+    line-height: 1.45;
+    margin-bottom: 18px;
+    font-size: 16px;
+  }
+  [data-tv="true"] .hero-meta {
+    margin-bottom: 18px;
+  }
+}
+
+[data-tv="true"] .rail-paging {
+  display: none;
+}
+@media (max-height: 600px) {
+  [data-tv="true"] .hero-category {
+    display: none;
+  }
+  [data-tv="true"] .hero-meta {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+}

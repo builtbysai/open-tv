@@ -1,0 +1,21 @@
+name = "open-tv-control"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# Set to the site's origin(s), comma-separated. The Google TV app connects from
+# https://appassets.androidplatform.net.
+[vars]
+ALLOWED_ORIGINS = "https://tv.builtbysai.com,https://appassets.androidplatform.net"
+
+# Logs and errors in the Cloudflare dashboard (Workers → open-tv-control → Logs).
+[observability]
+enabled = true
+
+[[durable_objects.bindings]]
+name = "HOUSEHOLD"
+class_name = "Household"
+
+# SQLite-backed Durable Objects are the ones available on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Household"]

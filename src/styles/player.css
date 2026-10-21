@@ -1,0 +1,406 @@
+/* Player controls: one quiet, icon-led control language for video, radio and music. */
+.player-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #08090b;
+}
+.player-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+.player-bar > div {
+  min-width: 0;
+}
+.player-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--quiet);
+}
+.player-source a {
+  display: inline-flex;
+  color: inherit;
+}
+
+/* Over the picture */
+.player-shell.overlay .player-stage {
+  position: absolute;
+  inset: 0;
+}
+.player-shell.overlay .player-bar {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 18px 24px 40px;
+  background: linear-gradient(#000c, #0000);
+  transition:
+    opacity 260ms var(--ease-out, ease),
+    transform 260ms var(--ease-out, ease);
+}
+.player-shell.overlay .pc-transport {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 44px 20px 14px;
+  background: linear-gradient(#0000, #000d);
+  transition:
+    opacity 260ms var(--ease-out, ease),
+    transform 260ms var(--ease-out, ease);
+}
+.player-shell.overlay.ui-idle {
+  cursor: none;
+}
+.player-shell.overlay.ui-idle .player-bar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+}
+.player-shell.overlay.ui-idle .pc-transport {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+.player-shell.overlay .player-hint {
+  position: absolute;
+  z-index: 4;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #000c;
+  color: var(--text);
+  animation: toast-in 260ms var(--ease-out, ease) both;
+}
+.player-shell.overlay .player-hint#playback-shortcuts {
+  top: auto;
+  bottom: 110px;
+}
+
+.pc-row,
+.pc-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pc-tools {
+  padding: 10px 20px 14px;
+  flex-wrap: nowrap;
+}
+.pc-spacer {
+  flex: 1;
+}
+.pc-row > .pc-tools {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+}
+
+.pc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  position: relative;
+  transition:
+    background-color 160ms,
+    transform 140ms var(--ease-out, ease),
+    opacity 160ms;
+}
+.pc-button:hover {
+  background: #ffffff1f;
+}
+.pc-button:active {
+  transform: scale(0.92);
+}
+.pc-button.is-on {
+  background: #ffffff26;
+}
+.pc-button:focus-visible {
+  outline-offset: 2px;
+}
+.pc-button.pc-play {
+  min-width: 46px;
+  height: 46px;
+}
+.pc-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+.pc-badge {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding-right: 4px;
+}
+.pc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pc-time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #ffffffd9;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+.pc-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #ffffff1f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* One thin line to scrub, thickening under the pointer. */
+.pc-scrubber,
+.pc-volume input {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  outline-offset: 4px;
+}
+.pc-scrubber {
+  display: block;
+  width: 100%;
+  height: 18px;
+}
+.pc-scrubber::-webkit-slider-runnable-track,
+.pc-volume input::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #fff var(--played, 0%),
+    #ffffff66 var(--played, 0%),
+    #ffffff66 var(--buffered, 0%),
+    #ffffff33 var(--buffered, 0%)
+  );
+  transition: height 140ms;
+}
+.pc-scrubber::-moz-range-track,
+.pc-volume input::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #ffffff33;
+}
+.pc-scrubber::-moz-range-progress,
+.pc-volume input::-moz-range-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: #fff;
+}
+.pc-scrubber:hover::-webkit-slider-runnable-track,
+.pc-scrubber:focus-visible::-webkit-slider-runnable-track {
+  height: 5px;
+}
+.pc-scrubber::-webkit-slider-thumb,
+.pc-volume input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  transform: scale(0);
+  transition: transform 140ms var(--spring, ease);
+}
+.pc-scrubber:hover::-webkit-slider-thumb,
+.pc-scrubber:focus-visible::-webkit-slider-thumb,
+.pc-volume:hover input::-webkit-slider-thumb,
+.pc-volume input:focus-visible::-webkit-slider-thumb {
+  transform: scale(1);
+}
+.pc-scrubber::-moz-range-thumb,
+.pc-volume input::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+.pc-volume {
+  display: inline-flex;
+  align-items: center;
+}
+.pc-volume input {
+  width: 0;
+  opacity: 0;
+  transition:
+    width 200ms var(--ease-out, ease),
+    opacity 200ms;
+}
+.pc-volume:hover input,
+.pc-volume:focus-within input {
+  width: 84px;
+  opacity: 1;
+  margin-right: 6px;
+}
+
+/* Panels */
+.pc-popover {
+  position: relative;
+  display: inline-flex;
+}
+.pc-panel {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: calc(100% + 12px);
+  min-width: 230px;
+  max-width: min(320px, 88vw);
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #ffffff1f;
+  border-radius: 16px;
+  background: #121418f2;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px #000a;
+  color: #fff;
+  animation: dialog-in 180ms var(--ease-out, ease);
+}
+.pc-popover.align-start .pc-panel {
+  right: auto;
+  left: 0;
+}
+.pc-field {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  color: #ffffffb3;
+}
+.pc-field select {
+  background: #ffffff12;
+  color: #fff;
+  border: 1px solid #ffffff22;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.pc-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pc-choices button {
+  padding: 6px 12px;
+  border: 1px solid #ffffff26;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  transition:
+    background-color 140ms,
+    transform 140ms var(--ease-out, ease);
+}
+.pc-choices button:hover {
+  background: #ffffff1c;
+}
+.pc-choices button[aria-pressed="true"] {
+  background: #fff;
+  color: #101317;
+}
+.pc-choices button:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 640px) {
+  .pc-text {
+    display: none;
+  }
+  .pc-volume input {
+    display: none;
+  }
+  .player-shell.overlay .pc-transport {
+    padding: 36px 12px 10px;
+  }
+  .pc-time {
+    margin-left: 4px;
+    font-size: 12px;
+  }
+  .pc-button {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 6px;
+  }
+}
+@media (pointer: coarse) {
+  .pc-volume {
+    display: none;
+  }
+}
+[data-tv="true"] .pc-button {
+  min-width: 56px;
+  height: 56px;
+}
+[data-tv="true"] .pc-text {
+  font-size: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-shell.overlay .player-bar,
+  .player-shell.overlay .pc-transport {
+    transition: none;
+  }
+}
+
+.player-shell.overlay .player-bar .icon-button {
+  color: #fff;
+  background: #0006;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.player-shell.overlay .player-bar .icon-button:hover {
+  background: #ffffff2e;
+}
+
+.embed-dock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  background: #0b0d10;
+  border-top: 1px solid #ffffff14;
+}
+.embed-dock .pc-scrubber {
+  flex: 1;
+  margin: 0 8px;
+}

@@ -1,0 +1,43 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="AlJazeeraEnglish" tvg-language="English" group-title="News",Al Jazeera English
+https://live-hls-apps-aje-fa.getaj.net/AJE/index.m3u8
+#EXTINF:-1 tvg-id="AlJazeeraArabic" tvg-language="Arabic" group-title="News",Al Jazeera Arabic
+https://live-hls-web-aja.getaj.net/AJA/index.m3u8
+#EXTINF:-1 tvg-id="AlJazeeraMubasher" tvg-language="Arabic" group-title="News",Al Jazeera Mubasher
+https://live-hls-web-ajm.getaj.net/AJM/index.m3u8
+#EXTINF:-1 tvg-id="DWEnglish" tvg-language="English" group-title="News",DW English
+https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8
+#EXTINF:-1 tvg-id="DWArabic" tvg-language="Arabic" group-title="News",DW Arabic
+https://dwamdstream103.akamaized.net/hls/live/2015526/dwstream103/index.m3u8
+#EXTINF:-1 tvg-id="DWEspanol" tvg-language="Spanish" group-title="News",DW Español
+https://dwamdstream104.akamaized.net/hls/live/2015530/dwstream104/index.m3u8
+#EXTINF:-1 tvg-id="France24English" tvg-language="English" group-title="News",France 24 English
+https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="France24French" tvg-language="French" group-title="News",France 24 Français
+https://live.france24.com/hls/live/2037179/F24_FR_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="France24Spanish" tvg-language="Spanish" group-title="News",France 24 Español
+https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="France24Arabic" tvg-language="Arabic" group-title="News",France 24 Arabic
+https://live.france24.com/hls/live/2037222/F24_AR_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="EuronewsEnglish" tvg-language="English" group-title="News",Euronews English
+https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8
+#EXTINF:-1 tvg-id="NHKWorldJapan" tvg-language="English" group-title="News",NHK World-Japan
+https://media-osa.hls.nhkworld.jp/hls/w/live/master.m3u8
+#EXTINF:-1 tvg-id="ABCNewsLive" tvg-language="English" group-title="News",ABC News Live
+https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8
+#EXTINF:-1 tvg-id="CBSNews" tvg-language="English" group-title="News",CBS News
+https://cbsnews.akamaized.net/hls/live/2020607/cbsnlineup_8/master.m3u8
+#EXTINF:-1 tvg-id="NBCNewsNow" tvg-language="English" group-title="News",NBC News NOW
+https://xumo-drct-nbcnn-ir8ze.fast.nbcuni.com/live/master.m3u8
+#EXTINF:-1 tvg-id="Newsmax" tvg-language="English" group-title="News",Newsmax
+https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8
+#EXTINF:-1 tvg-id="ABCNewsAustralia" tvg-language="English" group-title="News",ABC News Australia
+https://abc-news-dmd-streams-1.akamaized.net/out/v1/701126012d044971b3fa89406a440133/index.m3u8
+#EXTINF:-1 tvg-id="SkyNewsArabia" tvg-language="Arabic" group-title="News",Sky News Arabia
+https://stream.skynewsarabia.com/hls/sna.m3u8
+#EXTINF:-1 tvg-id="BloombergTV" tvg-language="English" group-title="News;Business",Bloomberg TV US
+https://www.bloomberg.com/media-manifest/streams/us.m3u8
+#EXTINF:-1 tvg-id="FoxWeather" tvg-language="English" group-title="Weather",Fox Weather
+https://247wlive.foxweather.com/stream/index.m3u8
+#EXTINF:-1 tvg-id="NASATV" tvg-language="English" group-title="Science;Documentary",NASA TV
+https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8

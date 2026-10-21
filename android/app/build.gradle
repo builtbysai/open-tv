@@ -1,0 +1,47 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.builtbysai.opentv'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.builtbysai.opentv'
+        minSdk 26
+        targetSdk 36
+        versionCode 7
+        versionName '0.8.0-tv-preview'
+    }
+    buildTypes {
+        debug { applicationIdSuffix '.debug'; versionNameSuffix '-debug'; resValue 'string', 'app_name', 'Open TV Preview' }
+        release { minifyEnabled false; resValue 'string', 'app_name', 'Open TV' }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/webAssets')
+}
+dependencies { implementation 'androidx.webkit:webkit:1.15.0' }
+def webAssets = tasks.register('syncWebAssets', Sync) {
+    inputs.file rootProject.file('../public/_headers')
+    from rootProject.file('../dist')
+    from(rootProject.file('../THIRD_PARTY.md')) { into 'licenses' }
+    ['react', 'react-dom', 'scheduler', 'hls.js', 'lucide-react'].each { module ->
+        from(rootProject.file("../node_modules/${module}/LICENSE")) {
+            into 'licenses'
+            rename { "${module}.txt" }
+        }
+    }
+    into layout.buildDirectory.dir('generated/webAssets')
+    exclude '_headers', 'sw.js', 'catalog/releases/**'
+    doFirst {
+        if (!rootProject.file('../dist/index.html').isFile()) throw new GradleException('Run npm ci && npm run build in the repository root first.')
+    }
+    doLast {
+        def headers = [:]
+        def allowed = ['Referrer-Policy', 'X-Content-Type-Options', 'Permissions-Policy', 'Content-Security-Policy']
+        rootProject.file('../public/_headers').readLines().findAll { it.startsWith('  ') }.each {
+            def pair = it.trim().split(': ', 2)
+            if (pair.length == 2 && allowed.contains(pair[0])) headers[pair[0]] = pair[1]
+        }
+        if (headers.size() != allowed.size()) throw new GradleException('Missing required viewer security headers.')
+        new File(destinationDir, 'security-headers.json').text = groovy.json.JsonOutput.toJson(headers)
+    }
+}
+tasks.named('preBuild').configure { dependsOn webAssets }
