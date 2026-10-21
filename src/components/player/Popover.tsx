@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 // A small panel that opens from an icon button. It closes on an outside press, on Escape
-// (without closing the player behind it), and when focus leaves it.
+// or the remote's Back (without closing the player behind it), and when focus leaves it.
 export function Popover({
   label,
   icon,
@@ -57,7 +57,18 @@ export function Popover({
         aria-label={label}
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => change(!open)}
+        onClick={(event) => {
+          change(!open);
+          // Opened from a keyboard or remote: focus moves into the panel.
+          if (!open && event.detail === 0)
+            requestAnimationFrame(() =>
+              root.current
+                ?.querySelector<HTMLElement>(
+                  ".pc-panel button, .pc-panel select",
+                )
+                ?.focus(),
+            );
+        }}
       >
         {icon}
         {badge && <span className="pc-badge">{badge}</span>}

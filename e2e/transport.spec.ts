@@ -100,6 +100,10 @@ test("an HTTP address with a working HTTPS twin plays through it, and the route 
     await video(page).evaluate((v: HTMLVideoElement) => v.currentSrc),
   ).toBe("https://twin.test/clip.webm");
   expect(plainHits).toBe(0);
+  await page
+    .locator("dialog.player-dialog")
+    .getByRole("button", { name: "Close player" })
+    .click();
   await page.goto(`${ORIGIN}/#/settings`);
   await page.reload();
   await settingsTab(page, "This device");

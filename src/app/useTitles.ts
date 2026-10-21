@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Content, Source } from "../domain/content";
 import { discoveryContent, isUnowned } from "../domain/discover";
 import {
@@ -55,10 +55,13 @@ export function useTitles({
   setNotice,
   setDerivedItems,
 }: Inputs) {
-  // What was played here, and how far, ranks "Popular on your servers".
+  // What was played here, and how far, ranks "Popular on your servers". It is re-ranked
+  // when the history changes, not on every progress save during playback.
+  const progress = useRef(user.progress);
+  progress.current = user.progress;
   const signal = useMemo(
-    () => ({ history: user.history, progress: user.progress }),
-    [user.history, user.progress],
+    () => ({ history: user.history, progress: progress.current }),
+    [user.history],
   );
   const { movies, live, audio, newOnServers, libraryIndex, shelves, featured } =
     useShelves(visible, metadata, discovery, curated, kids, signal);

@@ -23,8 +23,8 @@ export function AdultSources({
       <section className="settings-section" id="settings-adult-sources">
         <h3>18+ playlists</h3>
         <p className="muted">
-          18+ lists come from an extension file (Extension, above). They are
-          listed here, and can be connected, once you show 18+ content.
+          18+ lists come from an extension file or a playlist you add as 18+.
+          They are listed here, and can be connected, once you show 18+ content.
         </p>
       </section>
     );

@@ -48,7 +48,7 @@ test("a first visit opens the welcome, and finishing it sets things up once", as
     .getByLabel("API key or read access token")
     .fill("abcdef0123456789");
   await welcome.getByRole("button", { name: "Connect", exact: true }).click();
-  await expect(welcome.getByText("TMDB is connected.")).toBeVisible();
+  await expect(welcome.getByText(/TMDB key saved/)).toBeVisible();
   await welcome.getByRole("button", { name: "Next", exact: true }).click();
   // Step 4: a name and a Kids profile.
   await welcome.getByLabel("Your name").fill("Sai");

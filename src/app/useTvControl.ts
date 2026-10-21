@@ -4,7 +4,7 @@ import { canView } from "../domain/privacy";
 import { musicClient, musicIdOf } from "../music/client";
 import type { RemoteAction } from "../components/Player";
 import { contentFromRef, toItemRef } from "../remote/items";
-import type { Command, NowPlaying, Phase } from "../remote/protocol";
+import type { Command, NowPlaying, Phase, SyncDoc } from "../remote/protocol";
 import { remoteMessage, type Remote } from "../remote/useRemote";
 import { useReceiver } from "../remote/useReceiver";
 import { postDeviceMessage } from "../tv/device";
@@ -97,6 +97,9 @@ export function useTvReceiver({
   changeChannel,
   startAt,
   setAdult,
+  typing,
+  onSearch,
+  onSync,
 }: {
   tv: boolean;
   name: string;
@@ -110,6 +113,11 @@ export function useTvReceiver({
   startAt(itemId: string, seconds: number): void;
   // Shows or hides 18+ for a phone; resolves false when this TV doesn't allow it.
   setAdult(show: boolean): Promise<boolean> | boolean;
+  // The search field has focus; text typed on a phone lands in it.
+  typing: boolean;
+  onSearch(text: string, submit: boolean): void;
+  // A sync document from a paired phone.
+  onSync(doc: SyncDoc, full: boolean, from: string): void;
 }) {
   const current = useRef({
     visible,
@@ -132,7 +140,11 @@ export function useTvReceiver({
   startRef.current = startAt;
   const setAdultRef = useRef(setAdult);
   setAdultRef.current = setAdult;
-  const receiver = useReceiver(tv, name, async (command: Command) => {
+  const searchRef = useRef(onSearch);
+  searchRef.current = onSearch;
+  const typingRef = useRef(typing);
+  typingRef.current = typing;
+  const receiver = useReceiver(tv, name, onSync, async (command: Command) => {
     const now = current.current;
     switch (command.t) {
       case "play": {
@@ -170,6 +182,12 @@ export function useTvReceiver({
           : { ok: false, error: "adult-locked" };
       case "volume":
         return volume(command.step);
+      case "search":
+        searchRef.current(command.text, command.submit === true);
+        return { ok: true };
+      case "back":
+        window.dispatchEvent(new Event("opentv:back", { cancelable: true }));
+        return { ok: true };
       case "seek":
         return now.playing
           ? ask("seek", command.seconds)
@@ -216,6 +234,7 @@ export function useTvReceiver({
             !!playingNow.seriesId ||
             steppable.current),
         visible: document.visibilityState === "visible",
+        ...(typingRef.current ? { typing: true } : {}),
       };
       lastDetail = d;
       report(state);
@@ -226,12 +245,19 @@ export function useTvReceiver({
       media(new CustomEvent("opentv:media", { detail: lastDetail }));
     visibility();
     window.addEventListener("opentv:media", media);
+    window.addEventListener("opentv:receiver-refresh", visibility);
     document.addEventListener("visibilitychange", visibility);
     return () => {
       window.removeEventListener("opentv:media", media);
+      window.removeEventListener("opentv:receiver-refresh", visibility);
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [receiver.enabled, report]);
+  // Phones learn when the search field gains or loses focus.
+  useEffect(() => {
+    if (receiver.enabled)
+      window.dispatchEvent(new Event("opentv:receiver-refresh"));
+  }, [typing, receiver.enabled]);
   return receiver;
 }
 

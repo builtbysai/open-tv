@@ -33,14 +33,19 @@ The closed list (`src/remote/protocol.ts`, shared by the app and the Worker):
 | phone → TV  | `next`, `previous`                                   | Step channels, episodes or songs                                  |
 | phone → TV  | `volume` (up, down, mute)                            | The TV's own volume in the Android app; the player's in a browser |
 | phone → TV  | `adult` (show/hide)                                  | 18+ on the TV, from a phone that shows it (see below)             |
+| phone → TV  | `search` (text, submit)                              | Text typed on the phone into the TV's search, live                |
+| phone → TV  | `fullscreen`                                         | Enter or leave fullscreen in the TV's player                      |
 | either      | `signal`                                             | WebRTC handshake for the direct link on the home network          |
-| TV → phones | `state` (phase, position, duration, title)           | Sent on change only; the phone moves the position on              |
+| TV → phones | `state` (phase, position, duration, title, typing)   | Sent on change only; the phone moves the position on              |
 | TV → phone  | `ack` (ok or a reason)                               | The answer to each command                                        |
+| either      | `sync` (a sync document, `full` or changes only)     | Library, sources, servers and settings (see "Sync" below)         |
 | pairing     | `claim` (TV), `paired` (relay), `revoke`, `name`     | Pairing codes, tokens, removal and display names                  |
 
 An item reference carries the source and item ids, type, title, optional artwork, its
 classification and its stream addresses. Everything arriving is validated against
-fixed limits (`parseControllerMessage`, `parseTvMessage`).
+fixed limits (`parseControllerMessage`, `parseTvMessage`). A `sync` from a phone goes
+to the TV (with `from`); one from the TV goes to the phone named in `to`, or to every
+paired phone. A sync document is at most 4,000 entries and 192 KB.
 
 ## Pairing
 
@@ -55,8 +60,14 @@ token}` (Settings → This device → Your TVs).
 4. From then on both connect with their own credentials, sent in the WebSocket
    subprotocol list (never in a URL). Commands are accepted only from a paired phone.
 5. Removing a TV on the phone, or a phone on the TV, revokes that token at once: the
-   relay closes its connection and the other side sees it gone. Pairing again issues a
-   new token. There are no accounts, emails or passwords.
+   relay closes its connection and the other side sees it gone. There are no accounts,
+   emails or passwords.
+6. Scanning again from a phone that is already paired replaces its entry: the phone
+   offers its old credential with the new code, and the relay swaps the old token for
+   the new one (keeping the phone's name) instead of listing the phone twice. The phone
+   keeps one entry per TV, and the TV's id never changes, so neither side duplicates.
+
+Your TVs (on the phone) shows whether the TV in use is online.
 
 The one-time setup drop (playlists, servers, keys sent end-to-end encrypted through a
 public relay) still works as before, on the same QR.
@@ -78,6 +89,70 @@ public relay) still works as before, on the same QR.
 - If the TV app is behind another app, it asks Android to come back to the front (that
   works when "Display over other apps" is allowed); otherwise the phone says so.
 
+## Sync: one app on two screens
+
+Pairing also keeps the two the same. A fresh TV, once paired, arrives at the phone's
+library, sources (connected ones load), servers and home rails, with no import step.
+Changes on either side follow within a couple of seconds while both are online, and
+changes made while apart are merged when they meet.
+
+**What syncs** (small JSON only, `src/sync/state.ts`):
+
+| Key                  | What                                                                      |
+| -------------------- | ------------------------------------------------------------------------- |
+| `src:<id>`           | Your own playlists in full; built-in and extension lists by id, connected |
+| `srv:<id>`           | Media servers (they carry no credentials)                                 |
+| `mus:<id>`           | Music instances                                                           |
+| `fav:<id>`           | Saved titles                                                              |
+| `wish:<kind:tmdbId>` | Wishlist                                                                  |
+| `coll:<id>`          | Collections (name and titles)                                             |
+| `hist:<id>`          | History                                                                   |
+| `prog:<id>`          | Continue watching: the position in each title                             |
+| `set:lookups`        | Whether lyrics and album art are looked up                                |
+
+**What never syncs:** Xtream and Jellyfin accounts and saved sign-ins, the TMDB key, the
+18+ switch, its confirmation and PIN, 18+ (and unclassified) sources and servers, saved
+18+ titles and their history and positions, relay settings, and anything about the
+device itself (sleep, fullscreen, autostart, volume, the This-device options, the
+display size). Sources still arrive only as the person left them: sync carries choices,
+it doesn't connect anything nobody chose, and it never turns 18+ on.
+
+**How:** each device keeps a document per profile (`opentv:sync:v1:<profile>`): every
+entry's value and when it was set. A change is stamped by comparing the current state
+with the last document; a removal leaves a tombstone. Merging takes the newer entry per
+key (last writer wins; ties settle the same way on both sides), so no item is listed
+twice and edits made apart on both sides combine. Tombstones are kept for 30 days, and
+at most 500. What already existed before a device first synced counts as older than any
+later choice, and a list left as shipped as older still, so on a fresh TV the phone's
+document simply wins. The pure parts (`src/sync/doc.ts`) are unit tested.
+
+**When:** each side sends its whole document when the other comes online (after pairing,
+on app start, on reconnect), and the other answers with only what the sender lacks.
+While both stay online, changes go at most every two seconds; playback positions are
+saved every few seconds, so the other screen resumes within a few seconds of where you
+stopped. What is sent is compacted: history to 100 entries, positions to 300, and the
+whole well under the relay's message limit. The direct link on the home network carries
+it when open; otherwise the relay does, within its rate limits.
+
+**Profiles:** the active profile's library syncs with the other device's active profile.
+Sources, servers and settings belong to the device and are the same in every profile.
+
+**Applying:** the receiving side applies a sync by itself and shows one quiet line in
+Settings → This device: "Synced from your phone · 21:04" on the TV, "Synced with Living
+room · 21:04" on the phone. A phone with several TVs syncs with the one in use.
+
+**Privacy:** sync runs only between devices paired by scanning the TV's code; the relay
+passes documents to paired devices only, keeps nothing (no storage write, no
+attachment), and never sees media or guide data. When either side removes the pairing,
+sync stops and the other side says so ("Living room was removed. Syncing stopped.").
+
+## Switching screens
+
+**Play on TV** sends the title with your place in it and closes it on the phone if it
+was playing there; **Move to TV** in the phone's player does the same from the exact
+second. **Continue on this device** stops the TV and picks up where it was. Either way
+the title starts at the same position and stops on the first screen.
+
 ## The direct link on the home network
 
 Once both are connected, the phone offers the TV a WebRTC data channel, using the relay
@@ -97,6 +172,8 @@ plan with a wide margin. Three rules keep it that way:
   returns, or when the app comes back to the screen.
 - **Storage is written only when pairing changes** (a code, a new phone, a removal, a
   name), never per message. Now-playing state lives on the TV's socket attachment.
+  Sync documents are only passed on: a device that is offline gets the whole document
+  from the other when they next meet, so nothing waits on the relay.
 
 Each socket is also rate-limited (phones 30 messages at once and 5 a second after that,
 the TV 120 and 20), and Workers Logs are on (`[observability]` in `wrangler.toml`), so
@@ -129,8 +206,9 @@ connections and refusals show in the Cloudflare dashboard.
 
 - **Idle screen** (`ReceiverIdle`): whether the relay is reachable, paired phones (with
   Remove), the pairing QR, and **Browse on this TV** for when no phone is at hand.
-- **No typing on the TV.** There is no search screen and no on-screen keyboard; Settings
-  on the TV keeps only what a remote can use (this device, privacy, about).
+- **Search** uses the TV's own keyboard or voice; while the TV shows its search, a paired
+  phone shows a box that types into it live (Enter runs it). Settings on the TV keeps
+  only what a remote can use (this device, privacy, about).
 - **Back**: in the player it closes the player (back to idle when the phone started it);
   in browsing it steps out to the menu, then Home, then the idle screen; on the idle
   screen it is left to the TV, which exits to Google TV. One press, one effect.
@@ -146,6 +224,6 @@ connections and refusals show in the Cloudflare dashboard.
 cd control && npm install && npx wrangler dev --port 8787 --var ALLOWED_ORIGINS:"*"
 # in another shell, at the repository root:
 VITE_CONTROL_RELAY=ws://127.0.0.1:8787 npm run build && npm run preview
-node control/test/smoke.mjs          # protocol and pairing checks against the relay
+node control/test/smoke.mjs          # protocol, pairing and sync checks against the relay
 npx playwright test e2e/remote.spec.ts   # phone + TV end to end (skips without a relay)
 ```

@@ -245,8 +245,20 @@ export class Household extends DurableObject<Env> {
       delete this.stored.claims[codeHash];
       const id = token(12),
         secret = token(24);
+      // Pairing again from the same phone replaces its old entry.
+      const { replace } = credential;
+      const old = replace ? this.stored.controllers[replace.id] : undefined;
+      const replaced =
+        replace && old && same(old.tokenHash, await hash(replace.token))
+          ? old
+          : undefined;
+      if (replace && replaced) {
+        delete this.stored.controllers[replace.id];
+        for (const ws of this.ctx.getWebSockets(`controller:${replace.id}`))
+          ws.close(CLOSE.replaced, "replaced");
+      }
       this.stored.controllers[id] = {
-        name: "Phone",
+        name: replaced?.name ?? "Phone",
         tokenHash: await hash(secret),
         created: now,
       };
@@ -313,6 +325,13 @@ export class Household extends DurableObject<Env> {
           this.send(tv, { t: "signal", from: who.id, data: message.data });
         return;
       }
+      // Sync documents are passed on, never kept: a TV that is offline gets the whole
+      // document when it next meets the phone.
+      if (message.t === "sync") {
+        for (const tv of this.open("tv"))
+          this.send(tv, { ...message, from: who.id });
+        return;
+      }
       if (message.t === "name") {
         if (this.stored.controllers[who.id].name !== message.name) {
           this.stored.controllers[who.id].name = message.name;
@@ -356,6 +375,14 @@ export class Household extends DurableObject<Env> {
       case "signal": {
         for (const c of this.ctx.getWebSockets(`controller:${message.to}`))
           this.send(c, { t: "signal", data: message.data });
+        return;
+      }
+      case "sync": {
+        const { to, ...sync } = message;
+        for (const c of to
+          ? this.ctx.getWebSockets(`controller:${to}`)
+          : this.open("controller"))
+          this.send(c, sync);
         return;
       }
       case "claim": {

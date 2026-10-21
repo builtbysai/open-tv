@@ -1,15 +1,42 @@
 import { test, expect } from "./viewer-test";
 test.use({ viewport: { width: 1280, height: 720 } });
-test("the TV takes no typing: no search screen, no search button, no keyboard of its own", async ({
+test("the TV searches with the system keyboard only, and Enter moves to the results", async ({
   page,
 }) => {
-  await page.goto("/?tv=1#/search");
-  await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole("searchbox")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Search", exact: true }),
-  ).toHaveCount(0);
+  await page.goto("/?tv=1#/home");
+  const browse = page.getByRole("button", { name: "Browse on this TV" });
+  const search = page.getByRole("button", { name: "Search", exact: true });
+  // The TV may open on its idle screen first.
+  await browse.or(search).first().waitFor();
+  if (await browse.isVisible()) await browse.click();
+  await search.click();
+  const field = page.getByRole("searchbox");
+  await expect(field).toBeFocused();
+  // No keyboard of the app's own: the field is a plain input the TV's keyboard types into.
   await expect(page.locator(".tv-keyboard")).toHaveCount(0);
+  await expect(page.getByText(/type with the TV keyboard/)).toBeVisible();
+  await field.pressSequentially("big buck");
+  await field.press("Enter");
+  await expect(field).not.toBeFocused();
+  await expect(
+    page.getByRole("button", { name: /Details for Big Buck Bunny/ }).first(),
+  ).toBeVisible();
+});
+test("voice search from the TV app and a ?q= address land in search with results", async ({
+  page,
+}) => {
+  await page.goto("/?tv=1&q=sintel#/home");
+  await expect(page).toHaveURL(/#\/search$/);
+  await expect(page.getByRole("searchbox")).toHaveValue("sintel");
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent("opentv:search", { detail: { text: "big buck" } }),
+    ),
+  );
+  await expect(page.getByRole("searchbox")).toHaveValue("big buck");
+  await expect(
+    page.getByRole("button", { name: /Details for Big Buck Bunny/ }).first(),
+  ).toBeVisible();
 });
 test("search stays on phones and computers", async ({ page }) => {
   await page.goto("/#/search");

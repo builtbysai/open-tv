@@ -3,11 +3,10 @@ import type { SettingsProps, SettingsShared } from "./types";
 export function MediaSection({
   servers,
   onItems,
-  adult,
   user,
   onDrafts,
   setMessage,
-}: Pick<SettingsProps, "servers" | "onItems" | "adult" | "user" | "onDrafts"> &
+}: Pick<SettingsProps, "servers" | "onItems" | "user" | "onDrafts"> &
   Pick<SettingsShared, "setMessage">) {
   return (
     <section className="settings-section" id="settings-media">
@@ -32,9 +31,7 @@ export function MediaSection({
             },
             [item],
           );
-          setMessage(
-            adult ? "Added privately for this session." : "Media added.",
-          );
+          setMessage("Media added.");
         }}
         onNotice={setMessage}
       />

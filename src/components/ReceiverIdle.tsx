@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Compass, Settings2, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { Brand } from "./Brand";
 import { PhonePanel } from "./PhoneTransfer";
+import { SyncLine } from "./SyncLine";
 import type { Receiver } from "../remote/useReceiver";
 import type { Bundle } from "../transfer/bundle";
 
@@ -76,6 +77,7 @@ export function ReceiverIdle({
                     : "Connecting…"}
             </p>
           )}
+          {enabled && <SyncLine tv />}
           {enabled && paired && (
             <ul className="receiver-phones" aria-label="Paired phones">
               {controllers.map((c) => (

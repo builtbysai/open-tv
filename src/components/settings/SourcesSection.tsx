@@ -89,6 +89,8 @@ export function SourcesSection({
           </a>
         )}
         {adult &&
+          source.classification === "general" &&
+          source.kind === "m3u" &&
           !source.extension &&
           !builtIn.some((d) => d.id === source.id) && (
             <button

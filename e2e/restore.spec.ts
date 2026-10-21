@@ -90,3 +90,87 @@ test("after a reload the track comes back in the mini player, paused where it wa
   const before = await time();
   await expect.poll(time, { timeout: 8000 }).toBeGreaterThan(before + 0.5);
 });
+
+test("leaving the app pauses what plays and coming back resumes it; a paused track stays paused; the playback log says why", async ({
+  page,
+}) => {
+  const body = tone(20);
+  await page.route("https://audio.example/away.wav", (route) =>
+    route.fulfill({
+      body,
+      headers: {
+        "content-type": "audio/wav",
+        "access-control-allow-origin": "*",
+      },
+    }),
+  );
+  await page.goto("/#/settings");
+  const form = page.locator("form").filter({
+    has: page.getByRole("button", { name: "Add media", exact: true }),
+  });
+  await form
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Away Tone");
+  await form
+    .getByRole("textbox", { name: "Media URL", exact: true })
+    .fill("https://audio.example/away.wav");
+  await form
+    .getByRole("combobox", { name: "Content type", exact: true })
+    .selectOption("audio");
+  await form.getByLabel("I have permission to access this media").check();
+  await form.getByRole("button", { name: "Add media", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Listen", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Details for Away Tone" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Watch now|Listen|Play/ })
+    .first()
+    .click();
+  const media = page.locator("video");
+  const paused = () => media.evaluate((v: HTMLVideoElement) => v.paused);
+  const time = () => media.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await expect.poll(time, { timeout: 10000 }).toBeGreaterThan(0.3);
+  // An overlay or a dialog doesn't stop the activity: nothing happens to playback.
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent("opentv:hostlog", {
+        detail: {
+          event: "activity paused (overlay or dialog); playback continues",
+        },
+      }),
+    ),
+  );
+  expect(await paused()).toBe(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("opentv:suspend")));
+  await expect.poll(paused).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("opentv:resume")));
+  await expect.poll(paused).toBe(false);
+  // Paused by the viewer: coming back keeps it paused.
+  await page
+    .locator(".audio-stage")
+    .getByRole("button", { name: "Pause audio" })
+    .click();
+  await expect.poll(paused).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("opentv:suspend")));
+  await page.evaluate(() => window.dispatchEvent(new Event("opentv:resume")));
+  await page.waitForTimeout(500);
+  expect(await paused()).toBe(true);
+  await page
+    .locator(".audio-stage")
+    .getByRole("button", { name: "Play audio" })
+    .click();
+  await expect.poll(paused).toBe(false);
+  await page
+    .locator("dialog.player-dialog")
+    .getByRole("button", { name: /Close player/ })
+    .click();
+  await page.goto("/#/settings");
+  await page.getByRole("tab", { name: "About", exact: true }).click();
+  const log = page.getByRole("list", { name: "Playback log" });
+  await expect(log).toContainText("paused: the app left the screen");
+  await expect(log).toContainText("resumed: the app is back on screen");
+  await expect(log).toContainText("overlay or dialog");
+});

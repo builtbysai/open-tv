@@ -3,6 +3,7 @@ import { Brand } from "../components/Brand";
 import { Send, Check, Tv } from "lucide-react";
 import { controlRelay } from "../config/control";
 import { claimPairing } from "../remote/useRemote";
+import { readOutgoing } from "../sync/store";
 import { deviceName } from "../remote/name";
 import { mediaUrl, persistableUrl } from "../domain/urls";
 import { sources as builtInSources } from "../providers/registry";
@@ -106,7 +107,7 @@ export default function PairSend() {
     const claim = link?.claim;
     if (!claim || !controlRelay || claimed.current) return;
     claimed.current = true;
-    claimPairing(claim.tv, claim.code, deviceName()).then(
+    claimPairing(claim.tv, claim.code, deviceName(), readOutgoing()).then(
       (pairing) => setPaired({ state: "paired", name: pairing.name }),
       () => setPaired({ state: "failed", name: "" }),
     );
@@ -189,10 +190,16 @@ export default function PairSend() {
         profile,
         connect: includeConnected && connected.length ? connected : undefined,
       };
-      await publish(
-        link.room,
-        splitMessage(randomToken(6), await encrypt(link.key, bundle)),
-      );
+      // The TV accepts up to 40 parts; a very long history goes without the profile, and
+      // anything still too large is refused here rather than lost on the way.
+      let parts = splitMessage(randomToken(6), await encrypt(link.key, bundle));
+      if (parts.length > 40 && bundle.profile)
+        parts = splitMessage(
+          randomToken(6),
+          await encrypt(link.key, { ...bundle, profile: undefined }),
+        );
+      if (parts.length > 40) throw new Error("too large");
+      await publish(link.room, parts);
       setState("sent");
     } catch {
       setState("error");

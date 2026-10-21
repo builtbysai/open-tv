@@ -4110,3 +4110,38 @@ html[data-display="xlarge"] {
   gap: 6px;
   align-items: center;
 }
+.playback-log {
+  max-height: 260px;
+  overflow: auto;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.playback-log time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tv-typing {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: min(560px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+.tv-typing input {
+  flex: 1;
+  min-width: 0;
+}
+.search-hint {
+  margin: -4px 0 12px;
+}

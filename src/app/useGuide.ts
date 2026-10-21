@@ -92,6 +92,8 @@ export function useGuide(adult: boolean) {
     displayState: state,
     programs: adult ? state.programs : general,
     connect,
+    // The service's state right now, for a caller that awaited connect.
+    current: () => service.snapshot,
     importGuide,
     clear,
     refresh,

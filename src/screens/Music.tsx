@@ -1,3 +1,4 @@
+import { isTVMode } from "../tv/mode";
 import { useEffect, useRef, useState } from "react";
 import { ListPlus, Music2, Play, Search } from "lucide-react";
 import type { Content } from "../domain/content";
@@ -60,6 +61,9 @@ export function MusicScreen({
   const [problem, setProblem] = useState<string | null>(null);
   const [playlist, setPlaylist] = useState("");
   const abort = useRef<AbortController | null>(null);
+  // What "Try again" repeats: the last search, playlist or trending request that failed.
+  const retry = useRef<(() => void) | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const providerKey = music.providers
     .filter((p) => p.enabled)
     .map((p) => p.id + p.base)
@@ -103,15 +107,21 @@ export function MusicScreen({
         setTrending(songs);
       })
       .catch((error) => {
-        if (!canceled && error instanceof MusicUnavailableError)
+        if (!canceled && error instanceof MusicUnavailableError) {
+          retry.current = () => {
+            trendingCache = null;
+            setProblem(null);
+            setAttempt((n) => n + 1);
+          };
           setProblem(error.message);
+        }
       });
     return () => {
       canceled = true;
       controller.abort();
     };
-    // The providers decide whether to ask again.
-  }, [providerKey]);
+    // The providers decide whether to ask again, or Try again does.
+  }, [providerKey, attempt]);
   useEffect(() => () => abort.current?.abort(), []);
 
   const playSong = (song: Song) => {
@@ -124,6 +134,7 @@ export function MusicScreen({
       setResults(null);
       return;
     }
+    retry.current = () => void search(q);
     const found = await guard((signal) => musicClient.search(q, signal));
     if (found) setResults(found.slice(0, 40));
   };
@@ -133,6 +144,7 @@ export function MusicScreen({
       setProblem("Paste a playlist address, or its ID.");
       return;
     }
+    retry.current = () => void playPlaylist();
     const songs = await guard((signal) => musicClient.playlist(id, signal));
     if (!songs) return;
     if (!songs.length) {
@@ -223,17 +235,19 @@ export function MusicScreen({
           <div className="actions">
             <button
               className="button secondary"
-              onClick={() => void search(query)}
-              disabled={!query.trim()}
+              onClick={() => retry.current?.()}
+              disabled={!retry.current}
             >
               Try again
             </button>
-            <button
-              className="button secondary"
-              onClick={() => navigate("settings")}
-            >
-              Check provider addresses
-            </button>
+            {!isTVMode() && (
+              <button
+                className="button secondary"
+                onClick={() => navigate("settings")}
+              >
+                Check provider addresses
+              </button>
+            )}
           </div>
         </div>
       )}

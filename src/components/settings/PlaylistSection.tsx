@@ -1,6 +1,7 @@
 import { Plus, Upload } from "lucide-react";
 import type { Source } from "../../domain/content";
 import { stableId } from "../../domain/content";
+import { canPersistContent } from "../../domain/library";
 import { mediaUrl } from "../../domain/urls";
 import { parseM3U } from "../../providers/m3u";
 import { canPersistServer, validateServer } from "../../domain/servers";
@@ -108,25 +109,35 @@ export function PlaylistSection({
             accept=".m3u,.m3u8"
             onChange={async (e) => {
               const file = e.target.files?.[0];
+              e.target.value = "";
               if (!file) return;
               if (file.size > 15000000) {
                 setMessage("Choose a playlist smaller than 15 MB.");
                 return;
               }
               try {
+                // A file has no address to sync from, so its channels are kept with your
+                // personal media on this device.
                 const source: Source = {
-                  id: stableId(`file:${file.name}:${file.size}`),
-                  name: file.name,
+                  id: "personal-media",
+                  name: "Personal media",
                   kind: "library",
                   enabled: true,
                   classification: "general",
                   refreshHours: 0,
-                  description: "Local import.",
+                  description: "Your media",
                 };
                 const text = await file.text();
                 if (!mounted.current) return;
-                onItems(source, parseM3U(text, source));
-                setMessage("Imported.");
+                const items = parseM3U(text, source);
+                onItems(source, items);
+                const kept = items.filter(canPersistContent).length;
+                setMessage(
+                  `Imported ${items.length} ${items.length === 1 ? "entry" : "entries"} into Library → Personal media.` +
+                    (kept < items.length
+                      ? ` ${items.length - kept} with sign-in addresses last for this session only.`
+                      : ""),
+                );
               } catch (error) {
                 report(error);
               }
@@ -141,7 +152,12 @@ export function PlaylistSection({
             accept=".json"
             onChange={async (e) => {
               const file = e.target.files?.[0];
-              if (!file || file.size > 100000) return;
+              e.target.value = "";
+              if (!file) return;
+              if (file.size > 100000) {
+                setMessage("Choose a source registry smaller than 100 KB.");
+                return;
+              }
               try {
                 const data = JSON.parse(await file.text());
                 if (!mounted.current) return;

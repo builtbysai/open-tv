@@ -10,6 +10,8 @@ import {
   Volume2,
   VolumeX,
   Smartphone,
+  Maximize,
+  Undo2,
 } from "lucide-react";
 import { positionNow } from "../remote/items";
 import { remoteMessage, type Remote } from "../remote/useRemote";
@@ -132,6 +134,20 @@ export function RemoteBar({
           onClick={() => void run({ t: "stop" })}
         >
           <Square size={18} />
+        </button>
+        <button
+          className="icon-button"
+          aria-label="Fullscreen on TV"
+          onClick={() => void run({ t: "fullscreen" })}
+        >
+          <Maximize size={18} />
+        </button>
+        <button
+          className="icon-button"
+          aria-label="Back on TV"
+          onClick={() => void run({ t: "back" })}
+        >
+          <Undo2 size={18} />
         </button>
       </div>
       <div className="remote-extra">

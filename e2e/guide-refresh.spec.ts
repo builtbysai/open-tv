@@ -173,6 +173,7 @@ test("showing 18+ keeps the guide loaded and refreshing; a native suspend pauses
   expect(requests).toBe(2);
   await page.evaluate(() => window.dispatchEvent(new Event("opentv:resume")));
   await expect.poll(() => requests).toBe(3);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 test("malformed and entity-based guide imports preserve the previous schedule", async ({
   page,

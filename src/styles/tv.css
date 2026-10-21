@@ -153,21 +153,37 @@ html[data-tv="true"] {
 .tv-play-surface:focus > span {
   opacity: 1;
 }
+.tv-seek {
+  display: flex;
+  gap: 20px;
+  padding: 12px 5vw 0;
+  align-items: center;
+}
+.tv-seek input {
+  flex: 1;
+  min-width: 80px;
+  min-height: 32px;
+  accent-color: var(--accent);
+}
+.tv-seek output {
+  min-width: 130px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
 .tv-transport {
   display: flex;
   gap: 20px;
-  padding: 14px 5vw;
+  padding: 10px 5vw 14px;
   align-items: center;
 }
-.tv-transport input {
+.tv-transport .pc-tools {
   flex: 1;
-  min-width: 80px;
-  accent-color: var(--accent);
+  padding: 0;
+  min-width: 0;
 }
-.tv-transport output {
-  min-width: 130px;
-  font-variant-numeric: tabular-nums;
-  font-size: 16px;
+.tv-play-surface:focus {
+  outline-offset: -6px !important;
 }
 .tv-settings h2 {
   display: flex;

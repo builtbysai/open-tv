@@ -10,8 +10,11 @@ import {
   Rewind,
   FastForward,
   Tv,
+  VolumeX,
 } from "lucide-react";
 import { ToolCluster } from "./player/ToolCluster";
+import { useSeekPreview } from "./player/useSeekPreview";
+import { logMedia } from "../playback/media-log";
 import { PlaybackError } from "./player/PlaybackError";
 import { VideoControls } from "./player/VideoControls";
 import { useSleepTimer } from "./player/useSleepTimer";
@@ -39,7 +42,7 @@ import {
   type PlaybackSnapshot,
 } from "../playback/player-service";
 export interface RemoteAction {
-  action: "pause" | "resume" | "seek";
+  action: "pause" | "resume" | "seek" | "fullscreen";
   seconds?: number;
   respond(error?: string): void;
 }
@@ -145,7 +148,12 @@ export function Player({
     [menuOpen, setMenuOpen] = useState(false),
     [idle, setIdle] = useState(false),
     [isFullscreen, setFullscreen] = useState(false),
-    [pipActive, setPipActive] = useState(false);
+    [pipActive, setPipActive] = useState(false),
+    // The pointer rests on the title bar or the controls: they stay.
+    [overBar, setOverBar] = useState(false),
+    // TV: focus is in the title bar or the controls, so they stay.
+    [controlsFocused, setControlsFocused] = useState(false),
+    [silentDismissed, setSilentDismissed] = useState("");
   // A hint stays for a few seconds and then goes, so it never lingers as stale text.
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const flash = (message: string) => {
@@ -155,6 +163,11 @@ export function Player({
   };
   const sleep = useSleepTimer(() => callbacks.current.onClose());
   const shell = useRef<HTMLDivElement>(null);
+  const tvRef = useRef(tv);
+  tvRef.current = tv;
+  const seekPreview = useSeekPreview(video);
+  const nudge = useRef(seekPreview.nudge);
+  nudge.current = seekPreview.nudge;
   const [device] = useDeviceSettings();
   const skipRef = useRef(device.skipSeconds);
   skipRef.current = device.skipSeconds;
@@ -360,6 +373,11 @@ export function Player({
       const active = document.fullscreenElement === shell.current;
       setFullscreen(active);
       if (!document.fullscreenElement) lastFullscreenExit.current = Date.now();
+      // On a TV, fullscreen starts on the picture: OK pauses, Left/Right seek, Back leaves.
+      if (active && tvRef.current)
+        shell.current
+          ?.querySelector<HTMLElement>(".tv-play-surface")
+          ?.focus({ preventScroll: true });
     };
     document.addEventListener("fullscreenchange", change);
     return () => {
@@ -496,7 +514,7 @@ export function Player({
       if (
         !media &&
         (e.target as HTMLElement).matches(
-          "input,select,textarea,button:not([data-remote-seek])",
+          "input:not([data-remote-seek]),select,textarea,button:not([data-remote-seek])",
         )
       )
         return;
@@ -512,7 +530,44 @@ export function Player({
           );
         return;
       }
+      const {
+        isEmbed: framed,
+        embed: state,
+        embedApi: api,
+      } = remoteTarget.current;
+      // An embedded player Open TV can drive answers the same media keys.
+      if (framed) {
+        if (!media || !api || !state.ready || !canControl(state.protocol))
+          return;
+        const skip = skipRef.current;
+        const command: Partial<Record<string, () => unknown>> = {
+          MediaPlayPause: () => api.command(state.playing ? "pause" : "play"),
+          MediaPlay: () => api.command("play"),
+          MediaPause: () => api.command("pause"),
+          MediaFastForward: () =>
+            api.command(
+              "seek",
+              state.duration
+                ? Math.min(state.duration, state.time + skip)
+                : state.time + skip,
+            ),
+          MediaRewind: () =>
+            api.command("seek", Math.max(0, state.time - skip)),
+          MediaStop: () => callbacks.current.onClose(),
+        };
+        if (command[e.key]) {
+          e.preventDefault();
+          command[e.key]!();
+        }
+        return;
+      }
       if (!v) return;
+      // On a TV the arrows and a held key move a shown target; the jump follows a pause.
+      const seekKey = (seconds: number) => {
+        e.preventDefault();
+        if (tv) nudge.current(seconds, e.repeat);
+        else transport.current.seek(seconds);
+      };
       if ([" ", "k", "MediaPlayPause"].includes(e.key)) {
         e.preventDefault();
         if (!e.repeat) transport.current.togglePlayback();
@@ -529,14 +584,10 @@ export function Player({
         e.preventDefault();
         callbacks.current.onClose();
       }
-      if (["ArrowRight", "MediaFastForward"].includes(e.key)) {
-        e.preventDefault();
-        transport.current.seek(skipRef.current);
-      }
-      if (["ArrowLeft", "MediaRewind"].includes(e.key)) {
-        e.preventDefault();
-        transport.current.seek(-skipRef.current);
-      }
+      if (["ArrowRight", "MediaFastForward"].includes(e.key))
+        seekKey(skipRef.current);
+      if (["ArrowLeft", "MediaRewind"].includes(e.key))
+        seekKey(-skipRef.current);
       if (!tv && e.key === "ArrowUp") {
         e.preventDefault();
         v.volume = Math.min(1, v.volume + 0.05);
@@ -588,6 +639,17 @@ export function Player({
     embedEnded.current = item.id;
     callbacks.current.onEnded();
   }, [isEmbed, embed.ended, item.id]);
+  // Server players often start muted, and a remote cannot reach their sound button. Once
+  // playback has started, Open TV asks such a player to unmute, once per title; if it stays
+  // muted, the notice in our own chrome says so and offers Unmute.
+  const unmuteAsked = useRef("");
+  useEffect(() => {
+    if (!isEmbed || !embedApi || !embed.ready || !embed.playing) return;
+    if (!embed.muted || unmuteAsked.current === item.id) return;
+    unmuteAsked.current = item.id;
+    if (embedApi.command("unmute"))
+      logMedia("player", "embedded player started muted: asked it to unmute");
+  }, [isEmbed, embedApi, embed.ready, embed.playing, embed.muted, item.id]);
   useEffect(() => {
     setEmbed(emptyEmbedState);
   }, [item.id]);
@@ -600,6 +662,10 @@ export function Player({
   useEffect(() => {
     const command = (event: Event) => {
       const detail = (event as CustomEvent<RemoteAction>).detail;
+      if (detail.action === "fullscreen") {
+        void fullscreen.current();
+        return detail.respond();
+      }
       const {
         isEmbed: framed,
         embed: state,
@@ -672,19 +738,29 @@ export function Player({
     },
     [],
   );
-  // The controls fade away while a picture plays and come back with any movement.
+  // The chrome fades away after 3 s without input and comes back with any key or pointer
+  // movement: over a playing picture on the web, and always in fullscreen. It stays while
+  // the pointer rests on it, while a panel is open and, on a TV, while focus is in it.
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const fullscreenChrome = isFullscreen && !audioMode && (tv || !isEmbed);
   const quiet =
-    overlay &&
-    device.autoHideControls &&
-    snapshot.phase === "playing" &&
+    (fullscreenChrome ||
+      (overlay && device.autoHideControls && snapshot.phase === "playing")) &&
+    snapshot.phase !== "error" &&
     !menuOpen &&
     !showShortcuts &&
-    !notice;
+    !notice &&
+    !overBar &&
+    !(tv && controlsFocused);
+  const hidden = idle && quiet;
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
+  const wokeAt = useRef(0);
   const wake = () => {
+    if (hiddenRef.current) wokeAt.current = Date.now();
     setIdle(false);
     clearTimeout(idleTimer.current);
-    if (quiet) idleTimer.current = setTimeout(() => setIdle(true), 3200);
+    if (quiet) idleTimer.current = setTimeout(() => setIdle(true), 3000);
   };
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
@@ -692,6 +768,21 @@ export function Player({
     wakeRef.current();
     return () => clearTimeout(idleTimer.current);
   }, [quiet]);
+  // Any key wakes the chrome. On a TV, Up or Down while it is hidden only wakes it, so
+  // focus never moves to a control nobody could see.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (docked.current) return;
+      if (hiddenRef.current && tv && ["ArrowUp", "ArrowDown"].includes(e.key))
+        e.preventDefault();
+      wakeRef.current();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [tv]);
+  // A press that only brings the hidden controls back does not also pause the picture.
+  // The pointer movement just before it counts as the same press.
+  const wakingPress = useRef(false);
   // Keyboard users land on play/pause, so Space does what the shortcut hint says.
   useEffect(() => {
     if (tv || isEmbed) return;
@@ -702,6 +793,8 @@ export function Player({
     );
     return () => cancelAnimationFrame(id);
   }, [item, tv, isEmbed]);
+  const tvVideo = tv && !isEmbed && !audioMode;
+  const shownTime = Math.floor(seekPreview.preview ?? timeline.time);
   const cluster = (
     <ToolCluster
       tv={tv}
@@ -754,12 +847,30 @@ export function Player({
         ref={dialog}
         className="player-dialog"
         onCancel={(event) => {
-          // Escape leaves fullscreen first; it only closes the player from a normal view.
+          // Back (or Escape) undoes one thing at a time: an open panel, the shortcuts hint,
+          // hidden controls in fullscreen, fullscreen itself, and only then the player.
+          const panel = shell.current?.querySelector<HTMLElement>(
+            '.pc-popover > [aria-expanded="true"]',
+          );
+          if (panel) {
+            event.preventDefault();
+            panel.click();
+            panel.focus();
+            return;
+          }
+          if (showShortcuts) {
+            event.preventDefault();
+            setShowShortcuts(false);
+            return;
+          }
           if (
             document.fullscreenElement ||
             Date.now() - lastFullscreenExit.current < 600
           ) {
             event.preventDefault();
+            if (!document.fullscreenElement) return;
+            if (hiddenRef.current) wake();
+            else void document.exitFullscreen().catch(() => {});
             return;
           }
           if (dockable) {
@@ -770,11 +881,33 @@ export function Player({
       >
         <div
           ref={shell}
-          className={`player-shell ${overlay ? "overlay" : ""} ${overlay && idle ? "ui-idle" : ""}`}
-          onPointerMove={wake}
-          onPointerDown={wake}
-          onKeyDown={wake}
-          onFocus={wake}
+          className={`player-shell ${overlay ? "overlay" : ""} ${isFullscreen ? "is-fullscreen" : ""} ${hidden ? "ui-idle" : ""}`}
+          onPointerMove={(event) => {
+            setOverBar(
+              Boolean(
+                (event.target as Element).closest?.(
+                  ".player-bar,.player-controls,.pc-transport",
+                ),
+              ),
+            );
+            wake();
+          }}
+          onPointerLeave={() => setOverBar(false)}
+          onPointerDownCapture={() => {
+            wakingPress.current =
+              hiddenRef.current || Date.now() - wokeAt.current < 400;
+            wake();
+          }}
+          onFocus={(event) => {
+            setControlsFocused(
+              Boolean(
+                (event.target as Element).closest(
+                  ".player-bar,.player-controls",
+                ),
+              ),
+            );
+            wake();
+          }}
         >
           <div className="player-bar">
             <div>
@@ -854,7 +987,14 @@ export function Player({
                 playsInline
                 preload="metadata"
                 tabIndex={tv ? -1 : 0}
-                onClick={overlay ? togglePlayback : undefined}
+                onClick={
+                  overlay
+                    ? () => {
+                        if (!wakingPress.current) togglePlayback();
+                        wakingPress.current = false;
+                      }
+                    : undefined
+                }
                 onDoubleClick={
                   overlay ? () => void toggleFullscreen() : undefined
                 }
@@ -894,6 +1034,57 @@ export function Player({
                 </span>
               </button>
             )}
+            {seekPreview.preview !== null && (
+              <output className="seek-preview" aria-label="Seeking to">
+                {clock(seekPreview.preview)}
+              </output>
+            )}
+            {isEmbed && embed.muted && (
+              <div className="embed-muted">
+                {embedApi && canControl(embed.protocol) ? (
+                  <button
+                    className="button secondary"
+                    onClick={() => embedApi.command("unmute")}
+                  >
+                    <VolumeX size={18} />
+                    Sound is off in this player. Unmute
+                  </button>
+                ) : (
+                  <p role="status">
+                    <VolumeX size={18} /> Sound is off in this player.
+                  </p>
+                )}
+              </div>
+            )}
+            {snapshot.silentAudio &&
+              silentDismissed !== item.id &&
+              !/\bsilent\b/i.test(
+                [item.title, ...item.genres, item.description].join(" "),
+              ) && (
+                <div className="player-notice" role="status">
+                  <p>
+                    No sound is coming through. If this title should have sound,
+                    its audio is probably in a format this device can’t decode
+                    (often AC-3, E-AC-3 or DTS in movie files).
+                  </p>
+                  <div className="actions">
+                    {item.streams.length > 1 && (
+                      <button
+                        className="button secondary"
+                        onClick={() => void service.current?.nextSource()}
+                      >
+                        Try next source
+                      </button>
+                    )}
+                    <button
+                      className="button text"
+                      onClick={() => setSilentDismissed(item.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
             {!isEmbed &&
               ["loading", "buffering", "recovering"].includes(
                 snapshot.phase,
@@ -948,58 +1139,69 @@ export function Player({
               />
             )}
           </div>
-          {tv && !isEmbed && !audioMode && (
-            <div className="tv-transport">
-              <button className="button secondary" onClick={togglePlayback}>
-                {paused ? <Play size={20} /> : <Pause size={20} />}
-                {paused ? "Play" : "Pause"}
-              </button>
-              {timeline.duration > 0 ? (
-                <>
-                  <button
-                    className="icon-button"
-                    aria-label="Rewind 10 seconds"
-                    onClick={() => seek(-10)}
-                  >
-                    <Rewind size={20} />
-                  </button>
-                  {/* Shown, not focused: on a remote the arrows would be stuck inside it.
-                      Rewind, Forward and left/right on the picture seek instead. */}
-                  <input
-                    type="range"
-                    tabIndex={-1}
-                    aria-label="Seek video"
-                    min="0"
-                    max={timeline.duration}
-                    step="1"
-                    value={Math.min(timeline.time, timeline.duration)}
-                    onChange={(e) => {
-                      if (video.current)
-                        video.current.currentTime = Number(e.target.value);
-                    }}
-                  />
-                  <button
-                    className="icon-button"
-                    aria-label="Forward 10 seconds"
-                    onClick={() => seek(10)}
-                  >
-                    <FastForward size={20} />
-                  </button>
-                  <output aria-label="Playback time">
-                    {clock(timeline.time)} / {clock(timeline.duration)}
-                  </output>
-                </>
-              ) : (
-                <span className="eyebrow">
-                  {live ? "Live stream" : "Loading duration…"}
-                </span>
-              )}
-            </div>
-          )}
-          {isEmbed && device.embedSync && (
-            <EmbedDock state={embed} api={embedApi} skip={device.skipSeconds} />
-          )}
-          {!overlay && cluster}
+          <div className="player-controls">
+            {tvVideo && timeline.duration > 0 && (
+              <div className="tv-seek">
+                {/* Left/Right here seek like on the picture; Up/Down leave it. */}
+                <input
+                  type="range"
+                  data-remote-seek
+                  aria-label="Seek video"
+                  aria-valuetext={`${clock(shownTime)} of ${clock(timeline.duration)}`}
+                  min="0"
+                  max={timeline.duration}
+                  step="1"
+                  value={Math.min(shownTime, timeline.duration)}
+                  onChange={(e) => {
+                    if (video.current)
+                      video.current.currentTime = Number(e.target.value);
+                  }}
+                />
+                <output aria-label="Playback time">
+                  {clock(shownTime)} / {clock(timeline.duration)}
+                </output>
+              </div>
+            )}
+            {tvVideo && (
+              <div className="tv-transport">
+                <button className="button secondary" onClick={togglePlayback}>
+                  {paused ? <Play size={20} /> : <Pause size={20} />}
+                  {paused ? "Play" : "Pause"}
+                </button>
+                {timeline.duration > 0 ? (
+                  <>
+                    <button
+                      className="icon-button"
+                      aria-label={`Rewind ${device.skipSeconds} seconds`}
+                      onClick={() => seek(-device.skipSeconds)}
+                    >
+                      <Rewind size={20} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`Forward ${device.skipSeconds} seconds`}
+                      onClick={() => seek(device.skipSeconds)}
+                    >
+                      <FastForward size={20} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="eyebrow">
+                    {live ? "Live stream" : "Loading duration…"}
+                  </span>
+                )}
+                {cluster}
+              </div>
+            )}
+            {isEmbed && device.embedSync && (
+              <EmbedDock
+                state={embed}
+                api={embedApi}
+                skip={device.skipSeconds}
+              />
+            )}
+            {!overlay && !tvVideo && cluster}
+          </div>
           {notice && (
             <p className="player-hint" role="status">
               {notice}
@@ -1012,7 +1214,7 @@ export function Player({
                   ? "Back closes. If the remote cannot reach this player, use a phone or mouse for its controls."
                   : "Use the provider’s player controls."
                 : tv
-                  ? "OK: play/pause · Left/right on video: seek · Back: close"
+                  ? "OK on the picture: play/pause · Left/right on the picture or seek bar: seek, hold to go faster · Channel: next/previous · Back: close a menu, leave fullscreen, then close"
                   : "Space: pause · Left/right: seek · Up/down: volume · M: mute · F: fullscreen · Esc: close"}
             </p>
           )}

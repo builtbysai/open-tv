@@ -56,6 +56,31 @@ export interface StorageLike {
   setItem(key: string, value: string): void;
 }
 export const STORAGE_KEY = "opentv:user:v2";
+const LEGACY_MIGRATED = "opentv:legacy-migrated:v1";
+// The device PIN guards 18+ on this device whichever profile is open, so it is kept once
+// per device, not per profile.
+const DEVICE_PIN = "opentv:device-pin:v1";
+function devicePin(saved: string | null, state: UserState) {
+  try {
+    // Not written yet (an older save): the profile's own PIN becomes the device's.
+    if (saved === null) return;
+    const value = JSON.parse(saved);
+    delete state.preferences.pinHash;
+    delete state.preferences.pinSalt;
+    if (
+      record(value) &&
+      typeof value.hash === "string" &&
+      /^[a-f0-9]{64}$/.test(value.hash) &&
+      typeof value.salt === "string" &&
+      /^[a-f0-9]{32}$/.test(value.salt)
+    ) {
+      state.preferences.pinHash = value.hash;
+      state.preferences.pinSalt = value.salt;
+    }
+  } catch {
+    diagnose("storage.invalid-json");
+  }
+}
 export const routes: Route[] = [
   "home",
   "live",
@@ -96,16 +121,30 @@ function read(storage: StorageLike, key: string): unknown {
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
+// Opaque content ids, and the ids of titles found on your servers by TMDB id
+// (embed:movie:603, embed:series:1399:s1e2).
+const ID =
+  /^(?:ot-[a-z0-9]+|embed:(?:movie|series):\d{1,9}(?::s\d{1,5}e\d{1,5})?)$/;
 function ids(value: unknown): string[] {
   return Array.isArray(value)
     ? value
-        .filter(
-          (v): v is string => typeof v === "string" && /^ot-[a-z0-9]+$/.test(v),
-        )
+        .filter((v): v is string => typeof v === "string" && ID.test(v))
         .slice(0, 10000)
     : [];
 }
 export function loadUserState(storage: StorageLike): UserState {
+  // Read before a first save of this profile can write its own (empty) PIN.
+  let pin: string | null = null;
+  try {
+    pin = storage.getItem(DEVICE_PIN);
+  } catch {
+    diagnose("storage.unavailable");
+  }
+  const state = loadProfileState(storage);
+  devicePin(pin, state);
+  return state;
+}
+function loadProfileState(storage: StorageLike): UserState {
   const state = defaults();
   const saved = read(storage, STORAGE_KEY);
   if (record(saved) && saved.version === 2) {
@@ -297,6 +336,19 @@ export function loadUserState(storage: StorageLike): UserState {
     }
     return state;
   }
+  // Data from before profiles is moved once, into the first profile that opens; a profile
+  // added later starts empty instead of inheriting it.
+  let migrated = false;
+  try {
+    migrated = storage.getItem(LEGACY_MIGRATED) === "1";
+    storage.setItem(LEGACY_MIGRATED, "1");
+  } catch {
+    diagnose("storage.unavailable");
+  }
+  if (migrated) {
+    saveUserState(storage, state);
+    return state;
+  }
   // URL keys become opaque IDs. Do not copy titles, artwork, account URLs or adult activity.
   const favorites = read(storage, "opentv_favs");
   if (Array.isArray(favorites))
@@ -357,6 +409,13 @@ export function loadUserState(storage: StorageLike): UserState {
 }
 export function saveUserState(storage: StorageLike, state: UserState): boolean {
   try {
+    const { pinHash, pinSalt } = state.preferences;
+    storage.setItem(
+      DEVICE_PIN,
+      pinHash && pinSalt
+        ? JSON.stringify({ hash: pinHash, salt: pinSalt })
+        : "null",
+    );
     storage.setItem(STORAGE_KEY, JSON.stringify(state));
     return true;
   } catch {

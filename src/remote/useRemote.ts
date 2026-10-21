@@ -8,6 +8,7 @@ import {
   type Command,
   type NowPlaying,
   type RelayMessage,
+  type SyncDoc,
 } from "./protocol";
 import { ControlSocket, type SocketStatus } from "./socket";
 import { LanLink, type LanState } from "./lan";
@@ -29,6 +30,8 @@ export interface Remote {
   // A direct connection on the home network, used when it opens.
   lan: LanState;
   send(command: Outgoing): Promise<void>;
+  // A sync document for the TV, over the direct link when it is open.
+  sync(doc: SyncDoc, full: boolean): boolean;
   // Makes another paired TV the one to play on, and waits until it can be reached.
   use(tvId: string): Promise<boolean>;
 }
@@ -49,7 +52,10 @@ export const remoteMessage = (error: string) =>
 
 // The phone side: keeps a connection to the chosen TV while this page is open, shows what
 // it is playing and sends it commands.
-export function useRemote(deviceName: string): Remote {
+export function useRemote(
+  deviceName: string,
+  onSync?: (doc: SyncDoc, full: boolean) => void,
+): Remote {
   const { list, active } = usePairings();
   const tv = list.find((p) => p.tvId === active) ?? null;
   const on = !!controlRelay && !!tv;
@@ -61,6 +67,8 @@ export function useRemote(deviceName: string): Remote {
   );
   const socket = useRef<ControlSocket | null>(null);
   const link = useRef<LanLink | null>(null);
+  const syncRef = useRef(onSync);
+  syncRef.current = onSync;
   const [lan, setLan] = useState<LanState>("off");
   const reachable = useRef({ tvId: "", online: false });
   reachable.current = { tvId: tv?.tvId ?? "", online: tvOnline };
@@ -87,6 +95,7 @@ export function useRemote(deviceName: string): Remote {
       if (message.t === "presence") {
         setTvOnline(message.tv);
         setTvName(message.tvName);
+        pairings.setOnline(tv.tvId, message.tv);
         if (!message.tv) {
           setState(null);
           link.current?.close();
@@ -101,6 +110,10 @@ export function useRemote(deviceName: string): Remote {
       }
       if (message.t === "state") {
         setState({ state: message.state, at: Date.now() });
+        return;
+      }
+      if (message.t === "sync") {
+        syncRef.current?.(message.doc, message.full === true);
         return;
       }
       if (message.t === "ack") {
@@ -118,9 +131,19 @@ export function useRemote(deviceName: string): Remote {
       receive,
       (next) => {
         setStatus(next);
-        if (next !== "open") setTvOnline(false);
-        // The TV removed this phone, or forgot itself: the pairing is over.
-        if (next === "refused") pairings.remove(tv.tvId);
+        if (next !== "open") {
+          setTvOnline(false);
+          pairings.setOnline(tv.tvId, false);
+        }
+        // The TV removed this phone, or forgot itself: the pairing is over (unless
+        // this phone has just paired with it again).
+        if (
+          next === "refused" &&
+          pairings
+            .get()
+            .list.some((p) => p.tvId === tv.tvId && p.token === tv.token)
+        )
+          pairings.remove(tv.tvId);
       },
     );
     socket.current = ws;
@@ -168,6 +191,10 @@ export function useRemote(deviceName: string): Remote {
       pending.current.set(id, { resolve, reject, timer });
     });
   }, []);
+  const sync = useCallback((doc: SyncDoc, full: boolean) => {
+    const message = { t: "sync", doc, ...(full ? { full } : {}) };
+    return !!link.current?.send(message) || !!socket.current?.send(message);
+  }, []);
   const use = useCallback((tvId: string) => {
     pairings.choose(tvId);
     return new Promise<boolean>((resolve) => {
@@ -192,28 +219,42 @@ export function useRemote(deviceName: string): Remote {
     receivedAt: state?.at ?? 0,
     lan,
     send,
+    sync,
     use,
   };
 }
 
 // Pairs this device using the one-time code from the TV's QR. Resolves once the relay
-// has issued this device its own token.
+// has issued this device its own token. Pairing again with the same TV replaces the old
+// entry on both sides. `doc` (this device's sync document) goes to the TV at once.
 export function claimPairing(
   tvId: string,
   code: string,
   name: string,
+  doc?: SyncDoc | null,
 ): Promise<Pairing> {
   return new Promise((resolve, reject) => {
     if (!controlRelay) {
       reject(new Error("off"));
       return;
     }
+    const previous = pairings.get().list.find((p) => p.tvId === tvId);
     const ws = new WebSocket(`${controlRelay}/v1/tv/${tvId}`, [
       PROTOCOL,
       credential.claim(code),
+      ...(previous
+        ? [credential.controller(previous.controllerId, previous.token)]
+        : []),
     ]);
     let tvName = name;
     let done = false;
+    let tvHere = false;
+    let sent = !doc;
+    const sendDoc = () => {
+      if (sent || !done || !tvHere) return;
+      sent = true;
+      ws.send(JSON.stringify({ t: "sync", doc, full: true }));
+    };
     const timer = window.setTimeout(() => {
       ws.close();
       if (!done) reject(new Error("timeout"));
@@ -221,7 +262,11 @@ export function claimPairing(
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(String(event.data)) as RelayMessage;
-        if (message.t === "presence") tvName = message.tvName || tvName;
+        if (message.t === "presence") {
+          tvName = message.tvName || tvName;
+          tvHere = message.tv;
+          sendDoc();
+        }
         if (message.t === "paired") {
           done = true;
           clearTimeout(timer);
@@ -233,6 +278,7 @@ export function claimPairing(
             pairedAt: Date.now(),
           };
           pairings.add(pairing);
+          sendDoc();
           // Waits a moment for the TV's name, then hands over to the regular connection.
           setTimeout(() => {
             if (tvName && tvName !== pairing.name)

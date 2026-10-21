@@ -70,6 +70,18 @@ function connectedExtensionLists(): Record<string, boolean> {
   }
   return saved;
 }
+// Remembers whether an extension list is connected before the extension is here (a
+// choice synced from another device), so it connects when the list arrives.
+export function rememberExtensionList(id: string, enabled: boolean) {
+  try {
+    localStorage.setItem(
+      EXTENSION_ENABLED,
+      JSON.stringify({ ...connectedExtensionLists(), [id]: enabled }),
+    );
+  } catch {
+    /* Device storage may be disabled. */
+  }
+}
 interface Pending {
   controller: AbortController;
 }

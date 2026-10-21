@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Toast } from "./Toast";
 import { PairedTvs } from "./PairedTvs";
+import { SyncLine } from "./SyncLine";
 import { isTVMode } from "../tv/mode";
 import { persistableUrl } from "../domain/urls";
 import { diagnostics, friendlyError } from "../domain/errors";
@@ -12,6 +13,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { TVSettings } from "./TVSettings";
 import { TransportSettings } from "./TransportSettings";
 import { VideoDiagnostics } from "./VideoDiagnostics";
+import { PlaybackLog } from "./PlaybackLog";
 import { ProfileSettings } from "./ProfileSettings";
 import { PhoneTransfer } from "./PhoneTransfer";
 import { exportProfile } from "../persistence/profile";
@@ -125,10 +127,18 @@ export function Settings({
       servers: servers.filter(canPersistServer),
       musicProviders: music.providers,
       profile: exportProfile(user),
+      // Which lists were connected, so a restore connects them again.
+      connect: sources
+        .filter((s) => s.enabled && s.kind !== "xtream" && s.kind !== "library")
+        .map((s) => s.id),
     });
   };
   const importBackup = async (file: File | undefined) => {
-    if (!file || file.size > 2_000_000) return;
+    if (!file) return;
+    if (file.size > 2_000_000) {
+      setMessage("This backup exceeds the 2 MB limit.");
+      return;
+    }
     try {
       const data = JSON.parse(await file.text());
       if (data?.kind !== "open-tv-backup") throw new Error();
@@ -201,8 +211,8 @@ export function Settings({
             <section className="settings-section" id="settings-guided">
               <h2>Guided setup</h2>
               <p className="muted">
-                The welcome steps: bring your servers from your phone, connect
-                TMDB, choose a profile.
+                The welcome steps: bring your servers from your phone, choose
+                your sources, connect TMDB, choose a profile.
               </p>
               <button className="button secondary" onClick={onGuidedSetup}>
                 Run guided setup
@@ -241,7 +251,6 @@ export function Settings({
               <MediaSection
                 servers={servers}
                 onItems={onItems}
-                adult={adult}
                 user={user}
                 onDrafts={onDrafts}
                 setMessage={setMessage}
@@ -277,7 +286,6 @@ export function Settings({
           <PhoneTransfer active={tab === "profiles"} onApply={applyReceived} />
           <ProfileSettings />
           <BackupSection
-            adult={adult}
             exportBackup={exportBackup}
             importBackup={importBackup}
           />
@@ -292,10 +300,13 @@ export function Settings({
           hidden={tab !== "playback"}
         >
           {tv ? (
-            <p className="settings-note">
-              Sources, servers, accounts and profiles are managed on your phone.
-              Pair it from this TV’s home screen.
-            </p>
+            <>
+              <p className="settings-note">
+                Sources, servers, accounts and profiles are managed on your
+                phone. Pair it from this TV’s home screen.
+              </p>
+              <SyncLine tv />
+            </>
           ) : (
             <PairedTvs />
           )}
@@ -394,6 +405,7 @@ export function Settings({
           <div id="settings-updates">
             <CatalogUpdates state={updates} />
           </div>
+          <PlaybackLog />
         </div>
       </div>
 

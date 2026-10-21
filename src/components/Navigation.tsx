@@ -35,13 +35,11 @@ export function AppHeader({
   navigate,
   profile,
   onSwitchProfile,
-  tv = false,
   playTarget,
 }: Props & {
   adult: boolean;
   profile: Profile;
   onSwitchProfile(): void;
-  // A TV takes no typing: search lives on the phone.
   tv?: boolean;
   // Where Play goes when a TV is paired: here, or the TV.
   playTarget?: {
@@ -98,7 +96,7 @@ export function AppHeader({
             </span>
           </button>
         )}
-        {!tv && (
+        {
           <button
             className={`icon-button ${route === "search" ? "active" : ""}`}
             onClick={() => {
@@ -116,7 +114,7 @@ export function AppHeader({
           >
             <Search size={21} />
           </button>
-        )}
+        }
         {!profile.kids && (
           <button
             className={`icon-button ${route === "settings" ? "active" : ""}`}

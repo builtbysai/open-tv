@@ -10,12 +10,14 @@ import {
 import { Search, Play, LockKeyhole, X } from "lucide-react";
 import { Toast } from "../components/Toast";
 import { RemoteBar } from "../components/RemoteBar";
+import { TvTyping } from "../components/TvTyping";
 import { useRemote } from "../remote/useRemote";
 import { deviceName, tvName } from "../remote/name";
 import { playOnTv, remoteMessage, useTvReceiver } from "./useTvControl";
 import { positionNow } from "../remote/items";
 import { usePairings } from "../remote/pairings";
 import { isAudio, type Content } from "../domain/content";
+import { logMedia } from "../playback/media-log";
 import { canView, queryCatalog } from "../domain/privacy";
 import { applyContentPolicy } from "../domain/content-policy";
 import { privateViewingEnabled } from "../config/safety";
@@ -101,8 +103,13 @@ import {
   phonesMayShowAdult,
 } from "../persistence/adult-consent";
 import { preloadScreens } from "./idle";
+import { useSync, type SyncInbox } from "../sync/useSync";
+import { rememberExtensionList } from "./useCatalog";
 const builtInSourceIds: ReadonlySet<string> = new Set(
   builtInSources.map((s) => s.id),
+);
+const builtInEnabled: ReadonlyMap<string, boolean> = new Map(
+  builtInSources.map((s) => [s.id, s.enabled]),
 );
 // Settings and the grouping around it load together, only when the screen opens.
 // Screens not every visit needs load when they are first shown.
@@ -208,7 +215,7 @@ export default function App({ profileId }: { profileId: string }) {
   const extension = useExtension(builtInSourceIds, (file, mode) =>
     extensionData.current(file, mode),
   );
-  const music = useMusic();
+  const music = useMusic(profileId);
   const {
     sources,
     status,
@@ -274,9 +281,7 @@ export default function App({ profileId }: { profileId: string }) {
   const kids = profiles.active.kids === true;
   useEffect(() => {
     if (kids && (route === "settings" || route === "music")) navigate("home");
-    // No typing on a TV, so no search screen there.
-    if (tv && route === "search") navigate("home");
-  }, [kids, tv, route, navigate]);
+  }, [kids, route, navigate]);
   const visible = useMemo(() => {
     const items = queryCatalog(catalog, {
       adultUnlocked: adult,
@@ -397,7 +402,11 @@ export default function App({ profileId }: { profileId: string }) {
       }
     };
     window.addEventListener("pagehide", flush);
-    return () => window.removeEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      // Switching profile unmounts this profile's app: keep its last changes.
+      flush();
+    };
   }, [storage]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -496,20 +505,55 @@ export default function App({ profileId }: { profileId: string }) {
     // Decided once, when the app opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // The Android app leaving the screen: what plays stops, and 18+ is locked away.
-  const onSuspend = useRef(() => {});
-  onSuspend.current = () => {
-    for (const media of document.querySelectorAll<HTMLMediaElement>(
-      "video,audio",
-    ))
-      media.pause();
-    if (privateRef.current) lock(false);
-    else if (playing?.streams[0]?.format === "embed") setPlaying(null);
-  };
+  // The Android app really leaving the screen (Home, another app, an input switch): what
+  // plays pauses and is remembered, and coming back restores it, playing if it was. An
+  // overlay or a system dialog doesn't count. 18+ stays as it was; the app hides its window
+  // while it is away.
+  const phase = useRef("idle");
+  const pausedByHost = useRef(false);
   useEffect(() => {
-    const suspend = () => onSuspend.current();
+    const media = (event: Event) => {
+      phase.current =
+        (event as CustomEvent<{ phase?: string }>).detail?.phase || "idle";
+    };
+    const transport = (action: "pause" | "resume") =>
+      window.dispatchEvent(
+        new CustomEvent("opentv:remote", {
+          detail: { action, respond: () => undefined },
+        }),
+      );
+    const suspend = () => {
+      for (const element of document.querySelectorAll<HTMLMediaElement>(
+        "video,audio",
+      ))
+        if (!element.paused && !element.closest(".player-dialog, .mini-player"))
+          element.pause();
+      if (phase.current !== "playing") return;
+      pausedByHost.current = true;
+      logMedia("page", "paused: the app left the screen");
+      transport("pause");
+    };
+    const resume = () => {
+      if (!pausedByHost.current) return;
+      pausedByHost.current = false;
+      logMedia("page", "resumed: the app is back on screen");
+      transport("resume");
+    };
+    const host = (event: Event) =>
+      logMedia(
+        "host",
+        String((event as CustomEvent<{ event?: string }>).detail?.event || ""),
+      );
+    window.addEventListener("opentv:media", media);
     window.addEventListener("opentv:suspend", suspend);
-    return () => window.removeEventListener("opentv:suspend", suspend);
+    window.addEventListener("opentv:resume", resume);
+    window.addEventListener("opentv:hostlog", host);
+    return () => {
+      window.removeEventListener("opentv:media", media);
+      window.removeEventListener("opentv:suspend", suspend);
+      window.removeEventListener("opentv:resume", resume);
+      window.removeEventListener("opentv:hostlog", host);
+    };
   }, []);
   useRemoteNavigation(tv, route, navigate, () => {
     if (surface !== "browse") return false;
@@ -525,7 +569,11 @@ export default function App({ profileId }: { profileId: string }) {
         ?.focus({ preventScroll: true }),
     );
   }, [tv, surface]);
-  const remote = useRemote(deviceName());
+  // Sync documents from a paired device, handled by useSync below.
+  const syncInbox = useRef<SyncInbox>(() => {});
+  const remote = useRemote(deviceName(), (doc, full) =>
+    syncInbox.current(doc, full),
+  );
   const paired = usePairings();
   const tvReady = !tv && !!remote.tv && remote.tvOnline;
   const sendToTv = async (
@@ -549,6 +597,8 @@ export default function App({ profileId }: { profileId: string }) {
     try {
       await send();
       setNotice(`Playing on ${remote.tv?.name || "TV"}.`);
+      // It moves to the TV: it stops here.
+      if (playing && contentAliases(playing).includes(item.id)) closePlayer();
     } catch (error) {
       const reason = (error as Error).message;
       // 18+ shown here: ask the TV to show it too, then try once more.
@@ -694,6 +744,51 @@ export default function App({ profileId }: { profileId: string }) {
   };
   // A position handed over by a phone, used when that item opens.
   const handedOver = useRef<{ id: string; seconds: number } | null>(null);
+  // Search from outside the field: voice search or the search key on the TV (through the
+  // Android app), text typed on a paired phone, or a ?q= address. On a TV, Enter (or text
+  // that arrives complete) closes the keyboard and moves to the first result.
+  const firstResult = () =>
+    setTimeout(() => {
+      const field = document.querySelector<HTMLInputElement>("#global-search");
+      field?.blur();
+      document
+        .querySelector<HTMLElement>(
+          ".main-content .search-kinds button, .main-content .content-grid button, .main-content .content-card button",
+        )
+        ?.focus();
+    }, 150);
+  const runSearch = useRef((text: string, submit: boolean) => {
+    void [text, submit];
+  });
+  runSearch.current = (text: string, submit: boolean) => {
+    if (tv) setSurface("browse");
+    navigate("search");
+    setQuery(text);
+    if (submit && text) firstResult();
+    else if (!text)
+      setTimeout(
+        () =>
+          document.querySelector<HTMLInputElement>("#global-search")?.focus(),
+        50,
+      );
+  };
+  useEffect(() => {
+    const voice = (event: Event) => {
+      const text = String(
+        (event as CustomEvent<{ text?: string }>).detail?.text || "",
+      ).slice(0, 300);
+      runSearch.current(text, Boolean(text));
+    };
+    window.addEventListener("opentv:search", voice);
+    const asked = new URLSearchParams(location.search).get("q");
+    if (asked) {
+      const url = new URL(location.href);
+      url.searchParams.delete("q");
+      history.replaceState(null, "", url);
+      runSearch.current(asked.slice(0, 300), true);
+    }
+    return () => window.removeEventListener("opentv:search", voice);
+  }, []);
   const receiver = useTvReceiver({
     tv,
     name: tvName(),
@@ -704,6 +799,8 @@ export default function App({ profileId }: { profileId: string }) {
     closePlayer,
     changeChannel,
     startAt: (id, seconds) => (handedOver.current = { id, seconds }),
+    typing: route === "search",
+    onSearch: (text, submit) => runSearch.current(text, submit),
     setAdult: (show) => {
       if (!show) {
         if (privateRef.current) lock(false);
@@ -720,6 +817,57 @@ export default function App({ profileId }: { profileId: string }) {
       lock(true);
       return true;
     },
+    onSync: (doc, full, from) => syncInbox.current(doc, full, from),
+  });
+  // Library, sources, servers and app settings follow between this device and the
+  // devices paired with it (see src/sync and docs/REMOTE.md).
+  const adultIds = useMemo(
+    () =>
+      new Set(
+        catalog
+          .filter((c) => c.classification !== "general")
+          .flatMap(contentAliases),
+      ),
+    [catalog],
+  );
+  syncInbox.current = useSync({
+    profileId,
+    tv,
+    state: {
+      user,
+      sources,
+      servers,
+      music: music.providers,
+      lookups: music.lookups,
+    },
+    builtIn: builtInEnabled,
+    peers: tv
+      ? receiver.status === "open"
+        ? receiver.controllers.filter((c) => c.online)
+        : []
+      : remote.tv && remote.tvOnline && remote.status === "open"
+        ? [{ id: remote.tv.tvId, name: remote.tv.name, online: true }]
+        : [],
+    paired: tv
+      ? receiver.controllers
+      : paired.list.map((p) => ({ id: p.tvId, name: p.name, online: false })),
+    send: (doc, full, to) =>
+      tv ? receiver.sync(doc, full, to) : remote.sync(doc, full),
+    hide: (key) =>
+      /^(fav|hist|prog):/.test(key) &&
+      adultIds.has(key.slice(key.indexOf(":") + 1)),
+    apply: {
+      user: (update) => setUser((old) => ({ ...old, ...update(old) })),
+      source: (source) => updateSource(source),
+      removeSource,
+      rememberList: rememberExtensionList,
+      server: saveServer,
+      removeServer,
+      music: music.save,
+      removeMusic: music.remove,
+      lookups: music.setLookups,
+    },
+    onNotice: setNotice,
   });
   const {
     hasSources,
@@ -759,19 +907,24 @@ export default function App({ profileId }: { profileId: string }) {
     restore && user.session.nowId
       ? visible.find((c) => contentAliases(c).includes(user.session.nowId!))
       : undefined;
-  // After a reload, a song comes back in the mini player where you were: paused and
-  // ready, since a browser won't start sound by itself, or playing in the TV app. Films,
-  // episodes, live channels and stations are offered through Continue, from the same
-  // position, so a reload never covers the screen with a player.
+  // After a reload, what was playing comes back where you were: a song in the mini player,
+  // a film or episode in the player, paused and ready (a browser won't start sound by
+  // itself), or playing in the TV app. Live channels, stations and embedded players are
+  // offered through Continue instead.
   const [heldStart, setHeldStart] = useState<string | null>(null);
   const broughtBack = useRef(false);
   useEffect(() => {
     if (broughtBack.current || !restored || playing) return;
-    if (!isAudio(restored) || restored.type === "radio") return;
+    if (
+      restored.type === "live" ||
+      restored.type === "radio" ||
+      restored.streams[0]?.format === "embed"
+    )
+      return;
     broughtBack.current = true;
     if (!tv) setHeldStart(restored.id);
     play(restored);
-    setMinimized(true);
+    if (isAudio(restored)) setMinimized(true);
     // Once, when the remembered title is found.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restored]);
@@ -825,7 +978,14 @@ export default function App({ profileId }: { profileId: string }) {
     metadata,
     selected?.classification === "general",
   );
-  const patches = useUserPatches(setUser);
+  const userPatches = useUserPatches(setUser);
+  const patches = {
+    ...userPatches,
+    clearHistory: () => {
+      userPatches.clearHistory();
+      music.clearRecent();
+    },
+  };
   const { card, rail } = useCards({
     user,
     setUser,
@@ -940,6 +1100,7 @@ export default function App({ profileId }: { profileId: string }) {
               )}
               {route === "home" && (
                 <Home
+                  onNotice={setNotice}
                   featured={featured}
                   movies={movies}
                   live={live}
@@ -1072,10 +1233,21 @@ export default function App({ profileId }: { profileId: string }) {
                             value={query}
                             autoComplete="off"
                             maxLength={300}
+                            enterKeyHint="search"
                             onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (tv && e.key === "Enter") firstResult();
+                            }}
                           />
-                          <kbd>/</kbd>
+                          {!tv && <kbd>/</kbd>}
                         </div>
+                      )}
+                      {route === "search" && tv && (
+                        <p className="fine-print search-hint">
+                          Press OK to type with the TV keyboard, or use voice.
+                          {receiver.controllers.some((c) => c.online) &&
+                            " Your paired phone shows a box to type here too."}
+                        </p>
                       )}
                       {searching && (
                         <SearchKinds
@@ -1091,9 +1263,12 @@ export default function App({ profileId }: { profileId: string }) {
                           <LibraryScreen
                             servers={servers}
                             visible={visible}
-                            personalMedia={queryCatalog(personalMedia, {
-                              adultUnlocked: adult,
-                            })}
+                            personalMedia={(() => {
+                              const shown = queryCatalog(personalMedia, {
+                                adultUnlocked: adult,
+                              });
+                              return kids ? shown.filter(isKidsSafe) : shown;
+                            })()}
                             view={user.session.library}
                             onViewChange={patches.setLibraryView}
                             collections={user.collections}
@@ -1308,6 +1483,12 @@ export default function App({ profileId }: { profileId: string }) {
               if (playing.seriesId && !upNext) changeChannel(1, false);
               // On-demand audio carries on to the queue, then the next in the list.
               else if (playing.type === "audio") changeChannel(1, false);
+              // A finished title doesn't come back after a reload; it starts from the top.
+              else
+                setUser((old) => ({
+                  ...old,
+                  session: { ...old.session, nowId: undefined },
+                }));
             }}
           />
         </Suspense>
@@ -1365,7 +1546,14 @@ export default function App({ profileId }: { profileId: string }) {
         </Suspense>
       )}
       {!tv && (
-        <RemoteBar remote={remote} onNotice={setNotice} onPlayHere={playHere} />
+        <>
+          <RemoteBar
+            remote={remote}
+            onNotice={setNotice}
+            onPlayHere={playHere}
+          />
+          <TvTyping remote={remote} onNotice={setNotice} />
+        </>
       )}
       {notice && <Toast message={notice} onDone={() => setNotice("")} />}
       <MobileNavigation route={route} navigate={navigate} />

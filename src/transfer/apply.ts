@@ -18,8 +18,8 @@ export interface BundleHandlers {
 // skipped so the rest still imports.
 export function applyBundle(bundle: Bundle, handlers: BundleHandlers) {
   for (const playlist of bundle.playlists) handlers.onSource(playlist);
-  for (const server of bundle.servers)
-    handlers.onServer({ ...server, enabled: false });
+  // Servers keep the on/off state they had where they came from.
+  for (const server of bundle.servers) handlers.onServer(server);
   for (const provider of bundle.musicProviders ?? [])
     handlers.onMusicProvider(provider);
   if (bundle.tmdbKey) handlers.onKey(bundle.tmdbKey);

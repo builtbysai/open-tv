@@ -3,8 +3,15 @@ import { Check, Trash2 } from "lucide-react";
 import { MAX_PROFILES } from "../persistence/accounts";
 import { avatarStyle, useProfiles } from "./ProfileGate";
 export function ProfileSettings() {
-  const { registry, active, add, rename, remove, switchProfile } =
-    useProfiles();
+  const {
+    registry,
+    active,
+    add,
+    rename,
+    remove,
+    setKids: makeKids,
+    switchProfile,
+  } = useProfiles();
   const [name, setName] = useState(""),
     [kids, setKids] = useState(false),
     [confirming, setConfirming] = useState("");
@@ -36,14 +43,26 @@ export function ProfileSettings() {
                 else if (value !== profile.name) rename(profile.id, value);
               }}
             />
-            {profile.kids && <span className="profile-active">Kids</span>}
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={profile.kids === true}
+                // The profile in use can't turn itself into Kids: Settings would vanish.
+                disabled={profile.id === active.id}
+                onChange={(event) => makeKids(profile.id, event.target.checked)}
+              />
+              Kids
+            </label>
             {profile.id === active.id ? (
               <span className="profile-active">
                 <Check size={14} /> Active
               </span>
             ) : (
-              <button className="button text" onClick={switchProfile}>
-                Switch
+              <button
+                className="button text"
+                onClick={() => switchProfile(profile.id)}
+              >
+                Switch to {profile.name}
               </button>
             )}
             {registry.profiles.length > 1 &&
