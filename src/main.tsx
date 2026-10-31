@@ -1,12 +1,13 @@
 import { render } from "preact";
+import { ErrorBoundary } from "./app/ErrorBoundary";
 import { initModules } from "./app/runtime";
 import { detectRole } from "./core/env";
-import { PhoneApp } from "./phone/PhoneApp";
+import { WebApp } from "./web/WebApp";
 import { TvApp } from "./tv/TvApp";
 import { go, searchText } from "./tv/state";
 import "./styles/base.css";
 import "./styles/tv.css";
-import "./styles/phone.css";
+import "./styles/web.css";
 
 initModules();
 const role = detectRole();
@@ -19,4 +20,4 @@ if (q && role === "tv") {
   go({ name: "search" });
 }
 
-render(role === "tv" ? <TvApp /> : <PhoneApp />, document.getElementById("app")!);
+render(<ErrorBoundary>{role === "tv" ? <TvApp /> : <WebApp />}</ErrorBoundary>, document.getElementById("app")!);

@@ -3,10 +3,10 @@
 One static web app, two roles chosen at start-up, and a small relay between them.
 
 ```
- phone (role "remote")                              TV (role "tv")
+ web (role "web")                              TV (role "tv")
  ┌──────────────────────────┐                      ┌──────────────────────────────┐
- │ PhoneApp: browse, remote,│   WebSocket (relay)  │ TvApp: screens, spatial nav  │
- │ setup                    │◄────────────────────►│ PlaybackSession ─► renderer  │
+ │ WebApp: browse, watch, │   WebSocket (relay)  │ TvApp: screens, spatial nav  │
+ │ remote, setup            │◄────────────────────►│ PlaybackSession ─► renderer  │
  │ Controller               │  commands / state /  │ TvHost            │          │
  └──────────────────────────┘  encrypted sync      │                   ▼          │
             ▲                                       │          <iframe> (server)   │
@@ -15,7 +15,7 @@ One static web app, two roles chosen at start-up, and a small relay between them
 ```
 
 Role: `?tv=1`/`?role=` → saved choice → TV user-agent (Tizen, webOS, Android TV, Fire TV, …) →
-otherwise phone. The Android host loads `index.html?tv=1`.
+otherwise web (the website: it browses and plays in the browser itself, and is the remote when a TV is paired). The Android host loads `index.html?tv=1`.
 
 ## Layers (each knows only the ones below it)
 
@@ -26,7 +26,7 @@ otherwise phone. The Android host loads `index.html?tv=1`.
 | `src/player`       | `bridge.ts` (protocol), `frame.ts` (one frame), `session.ts`, renderers     |
 | `src/remote`       | `protocol.ts` (shared with the relay), relay client, pairing, sync, TV host, phone controller |
 | `src/app`          | synced data, wiring, hooks                                                  |
-| `src/tv`, `src/phone` | the two UIs                                                              |
+| `src/tv`, `src/web` | the two UIs. `web` = hash router, home/search/title/watch pages, remote, setup |
 | `control/`         | the relay: `core.ts` (rules), `worker.ts` (Cloudflare), `node.ts` (dev/tests) |
 
 ## Adding a module (live TV, radio, music, …)

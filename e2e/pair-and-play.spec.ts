@@ -14,6 +14,7 @@ test("phone sets up, pairs, and remote-controls playback on the TV", async ({ br
   const link = await pairLink(tv.page);
   expect(link).toContain("#/pair/");
 
+  await phone.page.goto("/#/setup");
   // --- phone: a wrong key is explained, the right one is saved
   await phone.page.getByPlaceholder("API key or read access token").fill("badkey");
   await phone.page.getByRole("button", { name: "Check and save" }).click();
@@ -43,15 +44,16 @@ test("phone sets up, pairs, and remote-controls playback on the TV", async ({ br
   await expect(tv.page.getByRole("button", { name: "The Matrix" }).first()).toBeVisible();
 
   // --- phone picks a movie and plays it on the TV
-  await phone.page.getByRole("button", { name: "Browse" }).click();
-  await phone.page.getByRole("button", { name: "The Matrix" }).first().click();
-  await phone.page.getByRole("button", { name: /Play on/ }).click();
+  await phone.page.getByRole("link", { name: "Browse" }).click();
+  await phone.page.getByRole("link", { name: "The Matrix" }).first().click();
+  await phone.page.getByRole("group", { name: "Where to watch" }).locator("button").nth(1).click();
+  await phone.page.getByRole("button", { name: /▶.* on / }).click();
   const frame = tv.page.locator("iframe.embed-frame");
   await expect(frame).toHaveAttribute("src", `${BRIDGE}/embed/movie/603`, { timeout: 15_000 });
   await expect(frame).toHaveAttribute("referrerpolicy", "origin");
 
   // --- the bridge comes alive; the phone shows it playing
-  await phone.page.getByRole("button", { name: "Remote" }).click();
+  await phone.page.getByRole("link", { name: "Remote" }).click();
   await expect(phone.page.locator(".now .phase")).toContainText("Playing", { timeout: 20_000 });
   await expect.poll(async () => (await frameVideo(tv.page, 4181)).paused).toBe(false);
 

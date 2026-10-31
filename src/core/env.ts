@@ -1,5 +1,5 @@
 // Which device is this, and what can the host around it do?
-export type Role = "tv" | "remote";
+export type Role = "tv" | "web";
 
 // Smart-TV browsers and the Android TV / Fire TV host announce themselves. Everything else
 // is a phone, tablet or computer, which starts as the remote.
@@ -15,14 +15,17 @@ export function detectRole(
 ): Role {
   const q = new URLSearchParams(search);
   const forced = q.get("role") || (q.get("tv") === "1" ? "tv" : "");
-  if (forced === "tv" || forced === "remote") return forced;
+  // "remote" is the old name for the phone/web role.
+  if (forced === "tv") return "tv";
+  if (forced === "web" || forced === "remote") return "web";
   try {
     const saved = localStorage.getItem(ROLE_KEY);
-    if (saved === "tv" || saved === "remote") return saved;
+    if (saved === "tv") return "tv";
+    if (saved === "web" || saved === "remote") return "web";
   } catch {
     /* Storage can be disabled. */
   }
-  return TV_UA.test(ua) ? "tv" : "remote";
+  return TV_UA.test(ua) ? "tv" : "web";
 }
 export function rememberRole(role: Role | null) {
   try {

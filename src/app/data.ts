@@ -110,6 +110,17 @@ class Data {
     return changed;
   }
 
+  // Merges a backup file and tells peers (the TV) about what changed. Newer entries win, so
+  // importing an old backup never undoes later changes.
+  importDoc(remote: Doc): number {
+    const changed = this.applyRemote(remote);
+    if (changed.length) for (const cb of this.listeners) cb(changed);
+    return changed.length;
+  }
+  exportDoc(): string {
+    return JSON.stringify({ app: "open-tv", version: 1, doc: this.doc.value }, null, 2);
+  }
+
   setTmdbKey(key: string) {
     this.commit((d, n) => put(d, "cfg:tmdb", key.trim(), n), ["cfg:tmdb"]);
   }
