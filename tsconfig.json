@@ -1,19 +1,28 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2018",
+    "lib": ["ES2018", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "skipLibCheck": true,
     "moduleResolution": "Bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
+    "skipLibCheck": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "strict": true,
-    "allowJs": true,
-    "checkJs": false,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "scripts", "server", "tests", "vite.config.ts"]
+  "include": [
+    "src",
+    "control/src/core.ts",
+    "control/src/node.ts",
+    "tests",
+    "e2e",
+    "scripts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
 }

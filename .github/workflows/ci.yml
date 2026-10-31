@@ -19,11 +19,12 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # The built JavaScript must parse as ES2018 and the source must avoid newer APIs and CSS:
+      # smart TVs ship browsers as old as Chromium 68.
+      - run: npm run check:compat
   browser:
     runs-on: ubuntu-latest
     needs: check
-    env:
-      PW_CHANNEL: chrome
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,18 +32,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chrome
-      # A local control relay, so the phone-and-TV tests (e2e/remote.spec.ts) run too.
-      - run: npm ci
-        working-directory: control
-      - name: Start the control relay
-        working-directory: control
-        run: |
-          npx wrangler dev --port 8787 --var ALLOWED_ORIGINS:"*" > "$RUNNER_TEMP/relay.log" 2>&1 &
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8787/health && break; sleep 2; done
-      - run: npm run build
-        env:
-          VITE_CONTROL_RELAY: ws://127.0.0.1:8787
+      - run: npx playwright install --with-deps chromium
+      # The harness builds the app against mock TMDB and mock servers and starts the relay
+      # (the same rules as the Worker, on Node), then the tests drive a phone and a TV.
       - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -59,17 +51,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: control/package-lock.json
-      - run: npm ci
+      - run: npm install
       - run: npm run typecheck
-      - name: Smoke test against wrangler dev
-        run: |
-          npx wrangler dev --port 8787 --var ALLOWED_ORIGINS:"*" > "$RUNNER_TEMP/relay.log" 2>&1 &
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8787/health && break; sleep 2; done
-          node test/smoke.mjs
   android:
-    # Compiles the TV app without any extension pack or secret, so it is safe on pull requests.
+    # Compiles the TV app. No secrets, so it is safe on pull requests.
     runs-on: ubuntu-latest
     needs: check
     steps:

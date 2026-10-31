@@ -22,10 +22,10 @@ def webAssets = tasks.register('syncWebAssets', Sync) {
     inputs.file rootProject.file('../public/_headers')
     from rootProject.file('../dist')
     from(rootProject.file('../THIRD_PARTY.md')) { into 'licenses' }
-    ['react', 'react-dom', 'scheduler', 'hls.js', 'lucide-react'].each { module ->
+    ['preact', '@preact/signals', '@preact/signals-core'].each { module ->
         from(rootProject.file("../node_modules/${module}/LICENSE")) {
             into 'licenses'
-            rename { "${module}.txt" }
+            rename { "${module.replace('/', '-')}.txt" }
         }
     }
     into layout.buildDirectory.dir('generated/webAssets')

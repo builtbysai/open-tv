@@ -1,0 +1,30 @@
+/* Shared. Written for Chromium 61+ engines (older smart TVs): no flex/grid `gap`, no
+   aspect-ratio, no inset, no clamp/min/max, no :focus-visible, no backdrop-filter. */
+:root {
+  --bg: #0b0d12;
+  --panel: #151922;
+  --panel-2: #1d2230;
+  --line: #2a3142;
+  --text: #f2f4f8;
+  --dim: #98a2b8;
+  --accent: #5b9dff;
+  --accent-ink: #06142e;
+  --ok: #4cd28a;
+  --bad: #ff6b6b;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+#app { height: 100%; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+h1, h2, h3, p { margin: 0; }
+img { display: block; }
+.hint { color: var(--dim); }
+.error { color: var(--bad); }
+.ok { color: var(--ok); }
+.spinner { width: 3rem; height: 3rem; border: 0.3rem solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.qr { background: #fff; padding: 0.6rem; border-radius: 0.5rem; width: 18rem; height: 18rem; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.qr-empty { background: var(--panel); }
+.toast { position: fixed; left: 50%; bottom: 3rem; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 0.7rem 1.2rem; border-radius: 0.6rem; z-index: 50; }

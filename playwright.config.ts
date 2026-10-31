@@ -1,26 +1,19 @@
 import { defineConfig } from "@playwright/test";
+
 export default defineConfig({
-  testDir: "./e2e",
-  fullyParallel: false,
+  testDir: "e2e",
+  timeout: 60_000,
   workers: 1,
-  timeout: 30000,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:4173",
-    viewport: { width: 1440, height: 1000 },
-    trace: "retain-on-failure",
+    baseURL: "http://localhost:4173",
+    // Point at a specific Chrome/Chromium when the bundled one is not installed.
+    launchOptions: { executablePath: process.env.PW_CHROME || undefined },
   },
   webServer: {
-    command: "npm run preview -- --port 4173",
-    url: "http://127.0.0.1:4173",
+    command: "tsx e2e/harness.ts",
+    url: "http://localhost:4173/health",
     reuseExistingServer: true,
+    timeout: 180_000,
   },
-  // Playwright's bundled Chromium cannot decode H.264, so CI sets PW_CHANNEL=chrome to run
-  // the playback specs in a real Chrome.
-  projects: [
-    {
-      name: "chromium",
-      use: { browserName: "chromium", channel: process.env.PW_CHANNEL },
-    },
-  ],
 });

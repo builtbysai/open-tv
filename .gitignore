@@ -16,10 +16,9 @@ relay.config.json
 __pycache__/
 dist-site
 
-# Optional site-served extension file (see docs/EXTENSIONS.md). Keep it out of a public repo.
-public/extension.json
-public/extension-data/
 
 # Local state of the control relay during development
 .wrangler/
 pw.local.config.ts
+dist-e2e/
+control/node_modules/

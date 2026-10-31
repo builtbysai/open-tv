@@ -1,21 +1,22 @@
 name = "open-tv-control"
-main = "src/index.ts"
+main = "src/worker.ts"
 compatibility_date = "2026-10-01"
 
-# Set to the site's origin(s), comma-separated. The Google TV app connects from
-# https://appassets.androidplatform.net.
+# Set to the origin(s) the app is served from, comma-separated. The Android TV app connects
+# from https://appassets.androidplatform.net.
 [vars]
 ALLOWED_ORIGINS = "https://tv.builtbysai.com,https://appassets.androidplatform.net"
 
-# Logs and errors in the Cloudflare dashboard (Workers → open-tv-control → Logs).
+# Logs and errors in the Cloudflare dashboard (Workers -> open-tv-control -> Logs).
 [observability]
 enabled = true
 
+# Same class and binding as the previous relay, so `npm run deploy` upgrades it in place with
+# no migration. Old pairings are not carried over (the protocol changed): pair each phone again.
 [[durable_objects.bindings]]
 name = "HOUSEHOLD"
 class_name = "Household"
 
-# SQLite-backed Durable Objects are the ones available on the free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Household"]
