@@ -22,6 +22,7 @@ uses it, and only servers that person is entitled to use belong there.
 | preact                  | MIT     | UI                                     |
 | @preact/signals(-core)  | MIT     | reactive state                         |
 | qrcode-generator        | MIT     | the pairing QR code, drawn as SVG      |
+| Inter (latin subset)    | OFL-1.1 | the website's typeface (`public/fonts`, license text beside it) |
 
 License texts for the packages above are copied into the Android app's `assets/licenses/`.
 

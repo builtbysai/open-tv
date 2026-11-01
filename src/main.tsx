@@ -5,9 +5,6 @@ import { detectRole } from "./core/env";
 import { WebApp } from "./web/WebApp";
 import { TvApp } from "./tv/TvApp";
 import { go, searchText } from "./tv/state";
-import "./styles/base.css";
-import "./styles/tv.css";
-import "./styles/web.css";
 
 initModules();
 const role = detectRole();
@@ -20,4 +17,19 @@ if (q && role === "tv") {
   go({ name: "search" });
 }
 
-render(<ErrorBoundary>{role === "tv" ? <TvApp /> : <WebApp />}</ErrorBoundary>, document.getElementById("app")!);
+// Each role uses only its own stylesheet (index.html declares both, switched off): the TV and the
+// website reuse class names (.row, .card, .hero…) for very different layouts.
+const start = () => render(<ErrorBoundary>{role === "tv" ? <TvApp /> : <WebApp />}</ErrorBoundary>, document.getElementById("app")!);
+const wanted = document.getElementById("css-" + role) as HTMLLinkElement | null;
+const other = document.getElementById("css-" + (role === "tv" ? "web" : "tv"));
+other?.parentNode?.removeChild(other);
+if (!wanted) start();
+else {
+  wanted.media = "all";
+  // `sheet` is set once it has loaded; if the file is still arriving, wait for it.
+  if (wanted.sheet) start();
+  else {
+    wanted.onload = start;
+    wanted.onerror = start;
+  }
+}

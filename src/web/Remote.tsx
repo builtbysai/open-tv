@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { useEffect, useState } from "preact/hooks";
+import { Icon } from "./icons";
 import { controller, press, tell } from "./link";
 
 const tick = signal(0);
@@ -14,7 +15,15 @@ const clock = (s: number) => {
 // The phone as the TV's remote: what is playing, transport, volume, a D-pad, and a keyboard.
 export function Remote() {
   const c = controller.value;
-  if (!c) return <div class="empty"><h2>No TV paired</h2><p>Open Open TV on your TV and scan the code it shows, or open Settings here.</p></div>;
+  if (!c)
+    return (
+      <div class="empty">
+        <span class="empty-icon"><Icon name="remote" size={28} /></span>
+        <h2>No TV paired</h2>
+        <p>Open Open TV on your TV and scan the QR code it shows with this device's camera. Then this page becomes its remote.</p>
+        <a class="btn primary" href="#/setup">Open setup</a>
+      </div>
+    );
   const s = c.state.value;
   const online = c.tvOnline.value;
   void tick.value;
@@ -54,7 +63,7 @@ export function Remote() {
 
       <div class="transport">
         <button class="rb" disabled={!caps.seek} onClick={() => void tell({ t: "seek", by: -10 })}>−10</button>
-        <button class="rb big" disabled={!controlled} onClick={() => void tell({ t: "ctl", a: "toggle" })}>{playing ? "❚❚" : "▶"}</button>
+        <button class="rb big" disabled={!controlled} onClick={() => void tell({ t: "ctl", a: "toggle" })}><Icon name={playing ? "pause" : "play"} size={24} /></button>
         <button class="rb" disabled={!caps.seek} onClick={() => void tell({ t: "seek", by: 10 })}>+10</button>
       </div>
       <div class="transport small">

@@ -7,6 +7,7 @@ import { parseDoc } from "../core/lww";
 import { claim } from "../remote/controller";
 import { pairedTvs, parsePairingHash, say, toast } from "../remote/pairing";
 import { Empty, Home, ListPage, SearchPage } from "./Home";
+import { Icon } from "./icons";
 import { controller, startLink } from "./link";
 import { ServersEditor, TmdbSetup, TvList } from "./Manage";
 import { Remote } from "./Remote";
@@ -50,8 +51,8 @@ export function WebApp() {
         {r.name === "list" && <ListPage />}
         {r.name === "search" && <SearchPage q={r.q} />}
         {r.name === "title" && <TitlePage route={r} />}
-        {r.name === "remote" && <div class="narrow"><Remote /></div>}
-        {r.name === "setup" && <Setup />}
+        {r.name === "remote" && <div class="wrap narrow"><Remote /></div>}
+        {r.name === "setup" && <div class="wrap"><Setup /></div>}
       </main>
       <TabBar />
       {toast.value && <div class="toast">{toast.value}</div>}
@@ -72,35 +73,62 @@ function Header() {
   const online = !!c && c.tvOnline.value;
   const q = r.name === "search" ? r.q : "";
   const input = useRef<HTMLInputElement>(null);
+  const [lifted, setLifted] = useState(false);
+  useEffect(() => {
+    const on = () => setLifted(window.scrollY > 4);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  // "/" jumps to the search box, like most sites.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && t && !/INPUT|TEXTAREA|SELECT/.test(t.tagName)) {
+        e.preventDefault();
+        input.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
   const active = (name: string, id?: string) => (r.name === name && (id === undefined || (r.name === "section" && r.id === id)) ? " on" : "");
   return (
-    <header class="top">
-      <a class="logo" href="#/">Open TV</a>
+    <header class={"top" + (lifted ? " lifted" : "")}>
+      <a class="brand" href="#/" aria-label="Open TV home">
+        <span class="brand-mark"><Icon name="play" size={12} /></span>
+        <span>Open<b>TV</b></span>
+      </a>
       <nav class="links" aria-label="Main">
         <a class={"lnk" + active("home")} href="#/">Home</a>
         {secs.map((s) => <a key={s.id} class={"lnk" + active("section", s.id)} href={`#/s/${s.id}`}>{s.label}</a>)}
         <a class={"lnk" + active("list")} href="#/list">My List</a>
       </nav>
-      <input
-        ref={input}
-        class="search"
-        type="search"
-        placeholder="Search"
-        aria-label="Search"
-        value={q}
-        enterKeyHint="search"
-        onInput={(e) => {
-          const v = (e.target as HTMLInputElement).value;
-          if (!v.trim()) return go("#/");
-          // Typing replaces the search address instead of adding a history entry per letter.
-          if (r.name === "search") replace(searchPath(v));
-          else go(searchPath(v));
-        }}
-      />
-      <a class={"lnk remote-link" + active("remote")} href="#/remote" title={c ? (online ? `${c.tvName.value} is connected` : `${c.tvName.value} is offline`) : "Pair a TV"}>
-        <span class={"dot" + (online ? " on" : "")} /> Remote
-      </a>
-      <a class={"lnk" + active("setup")} href="#/setup">Setup</a>
+      <label class="search">
+        <Icon name="search" size={18} />
+        <input
+          ref={input}
+          type="search"
+          placeholder="Search titles"
+          aria-label="Search"
+          value={q}
+          enterKeyHint="search"
+          onKeyDown={(e) => { if (e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+          onInput={(e) => {
+            const v = (e.target as HTMLInputElement).value;
+            if (!v.trim()) return go("#/");
+            // Typing replaces the search address instead of adding a history entry per letter.
+            if (r.name === "search") replace(searchPath(v));
+            else go(searchPath(v));
+          }}
+        />
+      </label>
+      <div class="top-end">
+        <a class={"lnk remote-link" + active("remote")} href="#/remote" title={c ? (online ? `${c.tvName.value} is connected` : `${c.tvName.value} is offline`) : "Pair a TV"}>
+          <span class={"dot" + (online ? " on" : "")} /> Remote
+        </a>
+        <a class={"lnk" + active("setup")} href="#/setup">Setup</a>
+      </div>
     </header>
   );
 }
@@ -108,12 +136,19 @@ function Header() {
 // Phones: the main places, under the thumb.
 function TabBar() {
   const r = route.value;
-  const tab = (href: string, label: string, on: boolean) => <a class={on ? "on" : ""} href={href}>{label}</a>;
+  const c = controller.value;
+  const online = !!c && c.tvOnline.value;
+  const tab = (href: string, label: string, icon: string, on: boolean, dot = false) => (
+    <a class={on ? "on" : ""} href={href} aria-current={on ? "page" : undefined}>
+      <Icon name={icon} size={22} />
+      <span>{label}{dot && <i class={"dot" + (online ? " on" : "")} />}</span>
+    </a>
+  );
   return (
     <nav class="tabs" aria-label="Tabs">
-      {tab("#/", "Browse", r.name === "home" || r.name === "section" || r.name === "title" || r.name === "search" || r.name === "list")}
-      {tab("#/remote", "Remote", r.name === "remote")}
-      {tab("#/setup", "Setup", r.name === "setup")}
+      {tab("#/", "Browse", "home", r.name === "home" || r.name === "section" || r.name === "title" || r.name === "search" || r.name === "list")}
+      {tab("#/remote", "Remote", "remote", r.name === "remote", !!c)}
+      {tab("#/setup", "Setup", "settings", r.name === "setup")}
     </nav>
   );
 }

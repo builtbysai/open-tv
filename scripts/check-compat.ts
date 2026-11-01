@@ -37,7 +37,10 @@ function walk(dir: string, out: string[] = []): string[] {
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 let failed = 0;
+// The website's stylesheet is for current browsers only; every other style file ships to TVs.
+const WEB_ONLY_CSS = join("src", "styles", "web.css");
 for (const file of walk("src")) {
+  if (file === WEB_ONLY_CSS) continue;
   const code = strip(readFileSync(file, "utf8"));
   const kind = file.endsWith(".css") ? "css" : "js";
   for (const [re, why, where] of BANNED) {

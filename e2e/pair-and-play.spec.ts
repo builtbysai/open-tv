@@ -47,7 +47,7 @@ test("phone sets up, pairs, and remote-controls playback on the TV", async ({ br
   await phone.page.getByRole("link", { name: "Browse" }).click();
   await phone.page.getByRole("link", { name: "The Matrix" }).first().click();
   await phone.page.getByRole("group", { name: "Where to watch" }).locator("button").nth(1).click();
-  await phone.page.getByRole("button", { name: /▶.* on / }).click();
+  await phone.page.getByRole("button", { name: /Play.* on / }).click();
   const frame = tv.page.locator("iframe.embed-frame");
   await expect(frame).toHaveAttribute("src", `${BRIDGE}/embed/movie/603`, { timeout: 15_000 });
   await expect(frame).toHaveAttribute("referrerpolicy", "origin");

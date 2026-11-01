@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { moduleOf, startFor } from "../app/runtime";
+import { Icon } from "./icons";
 import { playbackUnlocked } from "../core/env";
 import type { MediaRef } from "../core/module";
 import { rendererFor } from "../player/renderers";
@@ -115,7 +116,7 @@ export function Watch({ route }: { route: Extract<Route, { name: "watch" }> }) {
   return (
     <div class={"watch" + (fullscreen.value ? " fs" : "")} ref={root}>
       <div class="watch-bar">
-        <button class="wbtn" onClick={() => back("#/")} aria-label="Back">←</button>
+        <button class="wbtn" onClick={() => back("#/")} aria-label="Back"><Icon name="back" size={20} /></button>
         <div class="watch-title">
           <b>{ref?.title ?? ""}</b>
           {sub && <span>{sub}</span>}
@@ -125,8 +126,8 @@ export function Watch({ route }: { route: Extract<Route, { name: "watch" }> }) {
             {session.sources.value.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         )}
-        {session.hasNext.value && <button class="wbtn text" onClick={() => session.playNext()}>Next ▸</button>}
-        <button class="wbtn" onClick={() => toggleFullscreen(root.current)} aria-label="Full screen">{fullscreen.value ? "⤡" : "⤢"}</button>
+        {session.hasNext.value && <button class="wbtn text" onClick={() => session.playNext()}>Next <Icon name="skip" size={16} /></button>}
+        <button class="wbtn" onClick={() => toggleFullscreen(root.current)} aria-label="Full screen"><Icon name={fullscreen.value ? "shrink" : "expand"} size={20} /></button>
       </div>
 
       <div class="watch-stage">
@@ -135,7 +136,7 @@ export function Watch({ route }: { route: Extract<Route, { name: "watch" }> }) {
         {status === "loading" && <div class="veil"><div class="spinner" /><p>Starting on {src?.label}…</p></div>}
 
         {unlock.value && status === "live" && !failed && (
-          <div class="veil"><button class="btn primary big" onClick={() => { unlock.value = false; session.command({ c: "play" }); }}>▶ Play</button></div>
+          <div class="veil"><button class="btn primary big" onClick={() => { unlock.value = false; session.command({ c: "play" }); }}><Icon name="play" size={22} /> Play</button></div>
         )}
 
         {failed && (
@@ -180,7 +181,7 @@ export function Watch({ route }: { route: Extract<Route, { name: "watch" }> }) {
 
       {caps.controlled && !fullscreen.value && (
         <div class="watch-controls">
-          <button class="wbtn" onClick={() => session.command({ c: "toggle" })} aria-label={b.playing ? "Pause" : "Play"}>{b.playing ? "❚❚" : "▶"}</button>
+          <button class="wbtn" onClick={() => session.command({ c: "toggle" })} aria-label={b.playing ? "Pause" : "Play"}><Icon name={b.playing ? "pause" : "play"} size={20} /></button>
           {caps.seek && <button class="wbtn text" onClick={() => session.command({ c: "seekBy", by: -SEEK })}>−10</button>}
           {caps.seek && <button class="wbtn text" onClick={() => session.command({ c: "seekBy", by: SEEK })}>+10</button>}
           <span class="time">{clock(seek)}</span>
@@ -188,7 +189,7 @@ export function Watch({ route }: { route: Extract<Route, { name: "watch" }> }) {
             <input class="scrub-range" type="range" min={0} max={Math.floor(b.duration)} value={Math.floor(seek)} aria-label="Seek" onChange={(e) => session.command({ c: "seek", to: Number((e.target as HTMLInputElement).value) })} />
           ) : <span class="grow" />}
           <span class="time">{clock(b.duration)}</span>
-          {caps.mute && <button class="wbtn" onClick={() => session.command({ c: "mute", on: !b.muted })} aria-label={b.muted ? "Unmute" : "Mute"}>{b.muted ? "🔇" : "🔊"}</button>}
+          {caps.mute && <button class="wbtn" onClick={() => session.command({ c: "mute", on: !b.muted })} aria-label={b.muted ? "Unmute" : "Mute"}><Icon name={b.muted ? "mute" : "volume"} size={20} /></button>}
           {caps.volume && <input class="vol-range" type="range" min={0} max={100} value={Math.round(b.volume * 100)} aria-label="Volume" onChange={(e) => session.command({ c: "volume", to: Number((e.target as HTMLInputElement).value) / 100 })} />}
         </div>
       )}

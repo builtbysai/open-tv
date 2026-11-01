@@ -63,6 +63,16 @@ describe("server pattern", () => {
     expect(fillPattern(DEFAULT_MOVIE, server.base, { id: "tt0133093" })).not.toBeNull();
   });
 
+  it("refuses an episode address with a missing or bad season/episode", () => {
+    const b = server.base;
+    expect(fillPattern(DEFAULT_EPISODE, b, { id: "1396" })).toBeNull();
+    expect(fillPattern(DEFAULT_EPISODE, b, { id: "1396", season: 1 })).toBeNull();
+    expect(fillPattern(DEFAULT_EPISODE, b, { id: "1396", season: 1, episode: -1 })).toBeNull();
+    expect(fillPattern(DEFAULT_EPISODE, b, { id: "1396", season: 1, episode: 2 })).toBe(`${b}/embed/tv/1396/1/2`);
+    // A movie pattern does not use them, so they are not needed.
+    expect(fillPattern(DEFAULT_MOVIE, b, { id: "603" })).toBe(`${b}/embed/movie/603`);
+  });
+
   it("previews TMDB's sample film and episode", () => {
     expect(previewUrls(server)).toEqual({
       movie: "https://play.example.org/embed/movie/603",

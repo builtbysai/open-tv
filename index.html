@@ -11,6 +11,11 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <!-- One stylesheet per role: the TV and the website reuse class names for different
+         layouts. main.tsx switches on the right one and drops the other. -->
+    <link rel="stylesheet" href="/src/styles/base.css" />
+    <link rel="stylesheet" id="css-tv" href="/src/styles/tv.css" media="not all" />
+    <link rel="stylesheet" id="css-web" href="/src/styles/web.css" media="not all" />
     <title>Open TV</title>
   </head>
   <body>

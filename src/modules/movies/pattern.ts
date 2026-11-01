@@ -66,13 +66,20 @@ export interface PatternVars {
 export function fillPattern(pattern: string, base: string, vars: PatternVars): string | null {
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(vars.id)) return null;
   const num = (n: number | undefined) =>
-    Number.isInteger(n) && n! >= 0 && n! <= 100000 ? String(n) : "";
+    Number.isInteger(n) && n! >= 0 && n! <= 100000 ? String(n) : null;
+  // A placeholder the pattern uses must have a real value: never leave `/1396//` behind.
+  const season = num(vars.season);
+  const episode = num(vars.episode);
+  const start = num(vars.start ?? 0);
+  if (pattern.includes("{season}") && season === null) return null;
+  if (pattern.includes("{episode}") && episode === null) return null;
+  if (pattern.includes("{start}") && start === null) return null;
   const filled = pattern
     .replace(/\{base\}/g, base)
     .replace(/\{id\}/g, encodeURIComponent(vars.id))
-    .replace(/\{season\}/g, num(vars.season))
-    .replace(/\{episode\}/g, num(vars.episode))
-    .replace(/\{start\}/g, num(vars.start ?? 0));
+    .replace(/\{season\}/g, season ?? "")
+    .replace(/\{episode\}/g, episode ?? "")
+    .replace(/\{start\}/g, start ?? "");
   try {
     const url = new URL(filled);
     const home = new URL(base);

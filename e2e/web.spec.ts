@@ -12,10 +12,10 @@ async function webPage(browser: import("@playwright/test").Browser, servers?: Pa
 test.describe("website", () => {
   test("browse, open a title, play in the browser and control it", async ({ browser }) => {
     const { page } = await webPage(browser);
-    await expect(page.locator(".prail h3").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".row h2").first()).toBeVisible({ timeout: 15_000 });
     await page.getByRole("link", { name: "The Matrix" }).first().click();
     await expect(page.locator(".title h1")).toHaveText("The Matrix");
-    await page.getByRole("button", { name: /▶/ }).click();
+    await page.getByRole("button", { name: /^Play/ }).click();
     await expect(page).toHaveURL(/#\/w\/.*\/603/);
     await expect(page.locator("iframe.embed-frame")).toHaveAttribute("src", `${BRIDGE}/embed/movie/603`);
     await expect(page.locator(".watch-controls")).toBeVisible({ timeout: 20_000 });

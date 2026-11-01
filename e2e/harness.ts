@@ -27,7 +27,6 @@ const SHOWS = [
 const withImages = <T extends object>(o: T, id: number) => ({ ...o, poster_path: `/p${id}.jpg`, backdrop_path: `/b${id}.jpg`, vote_average: 8.2, genre_ids: [18] });
 const movie = (m: (typeof MOVIES)[number]) => withImages({ ...m, media_type: "movie" }, m.id);
 const show = (s: (typeof SHOWS)[number]) => withImages({ ...s, media_type: "tv" }, s.id);
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 
 function tmdb(request: IncomingMessage, response: ServerResponse) {
   const url = new URL(request.url ?? "/", "http://x");
@@ -35,7 +34,14 @@ function tmdb(request: IncomingMessage, response: ServerResponse) {
   response.setHeader("access-control-allow-headers", "*");
   if (request.method === "OPTIONS") return void response.writeHead(204).end();
   const send = (status: number, body: unknown) => { response.writeHead(status, { "content-type": "application/json" }); response.end(JSON.stringify(body)); };
-  if (url.pathname.startsWith("/t/p/")) { response.writeHead(200, { "content-type": "image/png" }); return void response.end(PNG); }
+  if (url.pathname.startsWith("/t/p/")) {
+    // A distinct gradient per image, so screenshots of the UI look like a real catalogue.
+    const n = Number(/\d+/.exec(url.pathname.split("/").pop() ?? "")?.[0] ?? 0);
+    const h = (n * 47) % 360;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 240" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h},55%,34%)"/><stop offset="1" stop-color="hsl(${(h + 50) % 360},60%,12%)"/></linearGradient></defs><rect width="160" height="240" fill="url(#g)"/></svg>`;
+    response.writeHead(200, { "content-type": "image/svg+xml" });
+    return void response.end(svg);
+  }
   const key = url.searchParams.get("api_key");
   const bearer = request.headers.authorization;
   if (key !== "goodkey" && bearer !== "Bearer eyJgood") return send(401, { status_message: "Invalid API key" });
