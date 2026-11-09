@@ -7,6 +7,13 @@ import { TvApp } from "./tv/TvApp";
 import { go, searchText } from "./tv/state";
 
 initModules();
+
+// Pop-ups the app page itself opens are never wanted: block them at the source, so any
+// pop-up this page tries to open is closed before it exists. This does not reach the embed
+// frame's own window.open (a separate, cross-origin window) — the first-click shield in
+// EmbedPlayer is what stops those from being created. Nothing in the app opens a window.
+window.open = () => null;
+
 const role = detectRole();
 document.documentElement.setAttribute("data-role", role);
 
