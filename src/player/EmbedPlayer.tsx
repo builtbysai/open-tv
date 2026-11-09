@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { PlaySource } from "../core/module";
 import { FrameLink } from "./frame";
 import type { PlaybackSession } from "./session";
@@ -33,6 +33,17 @@ export function EmbedPlayer({
   const link = useRef<FrameLink | null>(null);
   const keyHandler = useRef(onKey);
   keyHandler.current = onKey;
+
+  // First-click absorption: the frame is a stranger's page, and the first click on it is
+  // the one that opens the pop-up. Swallow exactly one pointer gesture per embed load on a
+  // transparent layer above the frame, then get out of the way: later clicks reach the
+  // player untouched. The gesture starts on our page, so the frame's document never sees
+  // the click at all. The component remounts per source (retry, next server, next episode),
+  // so every fresh embed gets its own absorbed first click.
+  const [shielded, setShielded] = useState(true);
+  useEffect(() => {
+    setShielded(true);
+  }, [source.url]);
 
   useEffect(() => {
     const el = frame.current;
@@ -96,16 +107,29 @@ export function EmbedPlayer({
   }, [source.url]);
 
   return (
-    <iframe
-      ref={frame}
-      class="embed-frame"
-      title={source.label}
-      src={source.url}
-      sandbox={source.sandbox ? SANDBOX : undefined}
-      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-      // The origin only (no path): lets your server allow-list who may embed it, and reveals
-      // nothing about what is being watched.
-      referrerPolicy="origin"
-    />
+    <>
+      <iframe
+        ref={frame}
+        class="embed-frame"
+        title={source.label}
+        src={source.url}
+        sandbox={source.sandbox ? SANDBOX : undefined}
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        // The origin only (no path): lets your server allow-list who may embed it, and reveals
+        // nothing about what is being watched.
+        referrerPolicy="origin"
+      />
+      {shielded && (
+        <div
+          class="embed-shield"
+          aria-hidden="true"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShielded(false);
+          }}
+        />
+      )}
+    </>
   );
 }
