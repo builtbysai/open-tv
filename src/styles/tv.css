@@ -1,6 +1,6 @@
 /* TV: 1rem = 1/120 of the screen width (16px at 1080p), so one layout fits 720p to 4K. */
 html[data-role="tv"] { font-size: 0.8333vw; overflow: hidden; }
-html[data-role="tv"] body { overflow: hidden; cursor: none; }
+html[data-role="tv"] body { overflow: hidden; cursor: default; }
 .tv { height: 100%; display: flex; flex-direction: column; position: relative; font-size: 1.4rem; }
 
 /* Focus ring: visible from across a room. */
