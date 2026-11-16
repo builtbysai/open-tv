@@ -128,7 +128,7 @@ export default defineConfig(({ mode }) => {
           this.emitFile({
             type: "asset",
             fileName: "sw.js",
-            source: readFileSync("scripts/service-worker.js", "utf8").replace(
+            source: readFileSync("scripts/service-worker.js", "utf8").replaceAll(
               "__CACHE__",
               `open-tv-${pkg.version}-${commit || "local"}-${Date.now().toString(36)}`,
             ),
